@@ -15,7 +15,7 @@ const CALLBACK_URL = `${APP_URL}/auth/callback`;
 const TOKEN_FILE = path.join(__dirname, '.token.json');
 const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
-const JOBBER_API_VERSION = '2024-02-07';
+const JOBBER_API_VERSION = '2025-04-16';
 
 app.use(express.static('public'));
 app.use(express.json());
@@ -264,8 +264,8 @@ app.get('/api/stats', async (req, res) => {
       recentQuotes,
     });
   } catch (err) {
-    console.error('Stats error:', err.message);
-    res.status(500).json({ error: 'Failed to fetch data from Jobber' });
+    console.error('Stats error:', err.message, err.response?.status, JSON.stringify(err.response?.data));
+    res.status(500).json({ error: 'Failed to fetch data from Jobber', detail: err.response?.status + ' ' + JSON.stringify(err.response?.data) });
   }
 });
 
