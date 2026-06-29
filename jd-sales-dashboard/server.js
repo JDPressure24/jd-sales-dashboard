@@ -181,6 +181,27 @@ app.get('/api/status', async (req, res) => {
   res.json({ connected: !!token });
 });
 
+app.get('/api/test', async (req, res) => {
+  const token = await getAccessToken();
+  if (!token) return res.json({ error: 'No token' });
+  try {
+    const result = await axios.post(
+      'https://api.getjobber.com/api/graphql',
+      { query: '{ account { name } }' },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-JOBBER-GRAPHQL-VERSION': JOBBER_API_VERSION,
+        },
+      }
+    );
+    res.json({ status: result.status, data: result.data });
+  } catch (err) {
+    res.json({ status: err.response?.status, data: err.response?.data, message: err.message });
+  }
+});
+
 app.get('/api/stats', async (req, res) => {
   const token = await getAccessToken();
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
