@@ -5,10 +5,10 @@ const path = require('path');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
- 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
- 
+
 const JOBBER_CLIENT_ID = process.env.JOBBER_CLIENT_ID;
 const JOBBER_CLIENT_SECRET = process.env.JOBBER_CLIENT_SECRET;
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
@@ -16,16 +16,30 @@ const COOKIE_SECRET = process.env.COOKIE_SECRET || 'jd-pressure-washing-secret-k
 const CALLBACK_URL = `${APP_URL}/auth/callback`;
 const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
+const LEAD_SOURCES_FILE = path.join(__dirname, '.lead-sources.json');
+const MONTHLY_GOAL = 50000;
+
+const LEAD_SOURCE_OPTIONS = [
+  'Referral',
+  'Google',
+  'Facebook / Instagram',
+  'Door Knock',
+  'Yard Sign',
+  'Repeat Customer',
+  'Website',
+  'Nextdoor',
+  'Other',
+];
 const JOBBER_API_VERSION = '2025-04-16';
- 
+
 app.use(express.static('public'));
 app.use(express.json());
 app.use(cookieParser(COOKIE_SECRET));
- 
+
 let pendingStates = {};
- 
+
 // ── Token helpers ─────────────────────────────────────────────────────────────
- 
+
 function readToken(req) {
   try {
     const raw = req.signedCookies?.jd_token || req.cookies?.jd_token;
@@ -33,7 +47,7 @@ function readToken(req) {
   } catch (_) {}
   return null;
 }
- 
+
 function writeToken(res, data) {
   const payload = JSON.stringify({ ...data, obtained_at: Date.now() });
   res.cookie('jd_token', payload, {
@@ -44,11 +58,11 @@ function writeToken(res, data) {
     sameSite: 'lax',
   });
 }
- 
+
 async function getAccessToken(req, res) {
   let token = readToken(req);
   if (!token) return null;
- 
+
   const age = Date.now() - token.obtained_at;
   if (age > 55 * 60 * 1000) {
     try {
@@ -68,9 +82,9 @@ async function getAccessToken(req, res) {
   }
   return token.access_token;
 }
- 
+
 // ── OAuth routes ───────────────────────────────────────────────────────────────
- 
+
 app.get('/auth/jobber', (req, res) => {
   const state = crypto.randomBytes(16).toString('hex');
   pendingStates[state] = true;
@@ -83,7 +97,7 @@ app.get('/auth/jobber', (req, res) => {
   ].join('');
   res.redirect(url);
 });
- 
+
 app.get('/auth/callback', async (req, res) => {
   const { code, state } = req.query;
   if (!pendingStates[state]) return res.status(400).send('Invalid state — please try connecting again.');
@@ -103,14 +117,14 @@ app.get('/auth/callback', async (req, res) => {
     res.status(500).send('Authentication failed. Please go back and try again.');
   }
 });
- 
+
 app.get('/auth/logout', (req, res) => {
   res.clearCookie('jd_token');
   res.redirect('/');
 });
- 
+
 // ── Jobber GraphQL ─────────────────────────────────────────────────────────────
- 
+
 async function jobberQuery(token, query, variables = {}) {
   const res = await axios.post(
     'https://api.getjobber.com/api/graphql',
@@ -126,9 +140,9 @@ async function jobberQuery(token, query, variables = {}) {
   if (res.data.errors) throw new Error(res.data.errors.map((e) => e.message).join(', '));
   return res.data.data;
 }
- 
+
 // ── Quotes ────────────────────────────────────────────────────────────────────
- 
+
 const QUOTES_QUERY = `
   query GetQuotes($cursor: String) {
     quotes(first: 100, after: $cursor) {
@@ -146,7 +160,7 @@ const QUOTES_QUERY = `
     }
   }
 `;
- 
+
 async function fetchAllQuotes(token) {
   let all = [], cursor = null;
   do {
@@ -156,9 +170,9 @@ async function fetchAllQuotes(token) {
   } while (cursor);
   return all;
 }
- 
+
 // ── Invoices ──────────────────────────────────────────────────────────────────
- 
+
 const INVOICES_QUERY = `
   query GetInvoices($cursor: String) {
     invoices(first: 100, after: $cursor) {
@@ -176,7 +190,7 @@ const INVOICES_QUERY = `
     }
   }
 `;
- 
+
 async function fetchAllInvoices(token) {
   let all = [], cursor = null;
   do {
@@ -186,23 +200,29 @@ async function fetchAllInvoices(token) {
   } while (cursor);
   return all;
 }
- 
+
 // ── Sales rep helpers ──────────────────────────────────────────────────────────
- 
+
 function readReps() {
   try { if (fs.existsSync(REPS_FILE)) return JSON.parse(fs.readFileSync(REPS_FILE, 'utf8')); } catch (_) {}
   return [];
 }
 function writeReps(data) { fs.writeFileSync(REPS_FILE, JSON.stringify(data)); }
- 
+
 function readAssignments() {
   try { if (fs.existsSync(ASSIGNMENTS_FILE)) return JSON.parse(fs.readFileSync(ASSIGNMENTS_FILE, 'utf8')); } catch (_) {}
   return {};
 }
 function writeAssignments(data) { fs.writeFileSync(ASSIGNMENTS_FILE, JSON.stringify(data)); }
- 
+
+function readLeadSources() {
+  try { if (fs.existsSync(LEAD_SOURCES_FILE)) return JSON.parse(fs.readFileSync(LEAD_SOURCES_FILE, 'utf8')); } catch (_) {}
+  return {};
+}
+function writeLeadSources(data) { fs.writeFileSync(LEAD_SOURCES_FILE, JSON.stringify(data)); }
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
- 
+
 function isToday(dateStr) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -210,54 +230,56 @@ function isToday(dateStr) {
          d.getMonth() === now.getMonth() &&
          d.getDate() === now.getDate();
 }
- 
+
 // ── API routes ─────────────────────────────────────────────────────────────────
- 
+
 app.get('/api/status', async (req, res) => {
   const token = await getAccessToken(req, res);
   res.json({ connected: !!token });
 });
- 
+
 app.get('/api/stats', async (req, res) => {
   const token = await getAccessToken(req, res);
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
- 
+
   try {
     const quotes = await fetchAllQuotes(token);
     const assignments = readAssignments();
+    const leadSourceMap = readLeadSources();
     const reps = readReps();
     const repMap = Object.fromEntries(reps.map((r) => [r.id, r.name]));
- 
+
     const enriched = quotes.map((q) => ({
       ...q,
       repId: assignments[q.id] || null,
       repName: assignments[q.id] ? (repMap[assignments[q.id]] || null) : null,
+      leadSource: leadSourceMap[q.id] || null,
     }));
- 
+
     // Filters
     let filtered = enriched;
     const { from, to, repId } = req.query;
     if (from) filtered = filtered.filter((q) => new Date(q.createdAt) >= new Date(from));
     if (to) filtered = filtered.filter((q) => new Date(q.createdAt) <= new Date(to + 'T23:59:59'));
     if (repId) filtered = filtered.filter((q) => q.repId === repId);
- 
+
     const won = filtered.filter((q) => ['approved', 'converted'].includes(q.quoteStatus));
     const lost = filtered.filter((q) => q.quoteStatus === 'archived');
     const sent = filtered.filter((q) => q.quoteStatus !== 'draft');
     const draft = filtered.filter((q) => q.quoteStatus === 'draft');
     const pending = filtered.filter((q) => q.quoteStatus === 'awaiting_response');
- 
+
     const totalRevenue = won.reduce((s, q) => s + (q.amounts?.total || 0), 0);
     const avgTicket = won.length > 0 ? totalRevenue / won.length : 0;
     const winRate = sent.length > 0 ? (won.length / sent.length) * 100 : 0;
- 
+
     // Daily metrics (always from full dataset, no date filter applied)
     const todayQuotes = enriched.filter((q) => isToday(q.createdAt));
     const todayWon = todayQuotes.filter((q) => ['approved', 'converted'].includes(q.quoteStatus));
     const todaySent = todayQuotes.filter((q) => q.quoteStatus !== 'draft');
     const todayRevenue = todayWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
     const todayPending = todayQuotes.filter((q) => q.quoteStatus === 'awaiting_response');
- 
+
     // Monthly breakdown (last 6 months)
     const monthly = {};
     for (let i = 5; i >= 0; i--) {
@@ -277,7 +299,7 @@ app.get('/api/stats', async (req, res) => {
         }
       }
     }
- 
+
     // Per-rep stats
     const repStats = {};
     for (const rep of reps) {
@@ -294,7 +316,7 @@ app.get('/api/stats', async (req, res) => {
         avgTicket: repWon.length > 0 ? repRevenue / repWon.length : 0,
       };
     }
- 
+
     const recentQuotes = [...filtered]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 50)
@@ -308,8 +330,28 @@ app.get('/api/stats', async (req, res) => {
         date: q.createdAt,
         repId: q.repId,
         repName: q.repName,
+        leadSource: q.leadSource,
       }));
- 
+
+    // Lead source breakdown
+    const leadSourceStats = {};
+    for (const src of LEAD_SOURCE_OPTIONS) leadSourceStats[src] = { count: 0, won: 0, revenue: 0 };
+    leadSourceStats['Untagged'] = { count: 0, won: 0, revenue: 0 };
+    for (const q of enriched) {
+      const src = q.leadSource || 'Untagged';
+      if (!leadSourceStats[src]) leadSourceStats[src] = { count: 0, won: 0, revenue: 0 };
+      if (q.quoteStatus !== 'draft') leadSourceStats[src].count++;
+      if (['approved', 'converted'].includes(q.quoteStatus)) {
+        leadSourceStats[src].won++;
+        leadSourceStats[src].revenue += q.amounts?.total || 0;
+      }
+    }
+
+    // Current month revenue for goal tracking
+    const now = new Date();
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthRevenue = (monthly[thisMonthKey] || {}).revenue || 0;
+
     res.json({
       summary: {
         totalQuotes: filtered.length,
@@ -331,30 +373,37 @@ app.get('/api/stats', async (req, res) => {
       monthly,
       repStats,
       recentQuotes,
+      leadSourceStats,
+      goal: {
+        monthly: MONTHLY_GOAL,
+        thisMonthRevenue,
+        percent: Math.min((thisMonthRevenue / MONTHLY_GOAL) * 100, 100),
+      },
+      leadSourceOptions: LEAD_SOURCE_OPTIONS,
     });
   } catch (err) {
     console.error('Stats error:', err.message, err.response?.status, JSON.stringify(err.response?.data));
     res.status(500).json({ error: 'Failed to fetch data', detail: err.message });
   }
 });
- 
+
 // ── Invoice stats ──────────────────────────────────────────────────────────────
- 
+
 app.get('/api/invoice-stats', async (req, res) => {
   const token = await getAccessToken(req, res);
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
- 
+
   try {
     const invoices = await fetchAllInvoices(token);
- 
+
     const paid = invoices.filter((i) => i.invoiceStatus === 'paid');
     const outstanding = invoices.filter((i) => ['sent', 'overdue', 'awaiting_payment'].includes(i.invoiceStatus));
     const draft = invoices.filter((i) => i.invoiceStatus === 'draft');
- 
+
     const paidRevenue = paid.reduce((s, i) => s + (i.amounts?.total || 0), 0);
     const outstandingRevenue = outstanding.reduce((s, i) => s + (i.amounts?.total || 0), 0);
     const avgInvoice = paid.length > 0 ? paidRevenue / paid.length : 0;
- 
+
     // Monthly invoice revenue (last 6 months)
     const monthly = {};
     for (let i = 5; i >= 0; i--) {
@@ -371,7 +420,7 @@ app.get('/api/invoice-stats', async (req, res) => {
         monthly[key].revenue += inv.amounts?.total || 0;
       }
     }
- 
+
     const recentInvoices = [...invoices]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 30)
@@ -384,7 +433,7 @@ app.get('/api/invoice-stats', async (req, res) => {
         total: i.amounts?.total || 0,
         date: i.createdAt,
       }));
- 
+
     res.json({
       summary: {
         total: invoices.length,
@@ -403,11 +452,11 @@ app.get('/api/invoice-stats', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch invoices', detail: err.message });
   }
 });
- 
+
 // ── Sales reps CRUD ────────────────────────────────────────────────────────────
- 
+
 app.get('/api/reps', (req, res) => res.json(readReps()));
- 
+
 app.post('/api/reps', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
@@ -417,7 +466,7 @@ app.post('/api/reps', (req, res) => {
   writeReps(reps);
   res.json(rep);
 });
- 
+
 app.delete('/api/reps/:id', (req, res) => {
   const reps = readReps().filter((r) => r.id !== req.params.id);
   writeReps(reps);
@@ -428,7 +477,19 @@ app.delete('/api/reps/:id', (req, res) => {
   writeAssignments(assignments);
   res.json({ ok: true });
 });
- 
+
+app.get('/api/lead-source-options', (req, res) => res.json(LEAD_SOURCE_OPTIONS));
+
+app.post('/api/lead-sources', (req, res) => {
+  const { quoteId, source } = req.body;
+  if (!quoteId) return res.status(400).json({ error: 'quoteId required' });
+  const sources = readLeadSources();
+  if (source) sources[quoteId] = source;
+  else delete sources[quoteId];
+  writeLeadSources(sources);
+  res.json({ ok: true });
+});
+
 app.post('/api/assignments', (req, res) => {
   const { quoteId, repId } = req.body;
   if (!quoteId) return res.status(400).json({ error: 'quoteId required' });
@@ -438,7 +499,7 @@ app.post('/api/assignments', (req, res) => {
   writeAssignments(assignments);
   res.json({ ok: true });
 });
- 
+
 app.listen(PORT, () => {
   console.log(`\n🚀 JD Sales Dashboard running at http://localhost:${PORT}\n`);
 });
