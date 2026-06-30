@@ -3,27 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>JD Sales Dashboard</title>
+  <title>JD Pressure Washing | Sales Dashboard</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface2: #222537;
-      --border: #2e3147;
-      --text: #e8eaf0;
-      --muted: #7c82a0;
-      --accent: #4f7df3;
-      --accent-glow: rgba(79,125,243,0.15);
+      --bg: #0b0f1a;
+      --surface: #111827;
+      --surface2: #1a2335;
+      --surface3: #1f2d42;
+      --border: #1e3a6e44;
+      --text: #e8edf5;
+      --muted: #6b7a99;
+      --navy: #1e3a6e;
+      --navy-light: #254a8a;
+      --navy-bright: #2d5da8;
+      --orange: #e07830;
+      --orange-dark: #c4621a;
+      --orange-bg: rgba(224,120,48,0.12);
+      --orange-border: rgba(224,120,48,0.3);
       --green: #22c55e;
       --green-bg: rgba(34,197,94,0.1);
       --red: #ef4444;
       --red-bg: rgba(239,68,68,0.1);
       --yellow: #f59e0b;
       --yellow-bg: rgba(245,158,11,0.1);
-      --blue: #3b82f6;
-      --blue-bg: rgba(59,130,246,0.1);
       --radius: 12px;
       --radius-sm: 8px;
     }
@@ -38,36 +42,48 @@
 
     /* ── Header ── */
     .header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, #0d1a2e 0%, #1e3a6e 100%);
+      border-bottom: 2px solid var(--orange);
       padding: 0 24px;
-      height: 60px;
+      height: 68px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
 
     .logo {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: 16px;
-      letter-spacing: -0.3px;
+      gap: 12px;
     }
 
-    .logo-icon {
-      width: 32px;
-      height: 32px;
-      background: linear-gradient(135deg, #4f7df3, #7c3aed);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
+    .logo-img {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--orange);
+      box-shadow: 0 0 12px rgba(224,120,48,0.4);
+    }
+
+    .logo-text h1 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.3px;
+      line-height: 1.1;
+    }
+
+    .logo-text span {
+      font-size: 11px;
+      color: var(--orange);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
     }
 
     .header-right {
@@ -76,147 +92,140 @@
       gap: 12px;
     }
 
-    .connection-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 6px var(--green);
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      border: 1px solid;
     }
 
-    .connection-dot.disconnected {
-      background: var(--red);
-      box-shadow: 0 0 6px var(--red);
-    }
+    .status-badge.connected { color: var(--green); border-color: var(--green); background: var(--green-bg); }
+    .status-badge.disconnected { color: var(--muted); border-color: #333; background: transparent; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 
     .btn {
-      padding: 7px 14px;
+      padding: 8px 16px;
       border-radius: var(--radius-sm);
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
       border: none;
       transition: all 0.15s;
     }
-
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-    .btn-primary:hover { background: #3d6de8; }
-
-    .btn-outline {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
-    .btn-outline:hover { color: var(--text); border-color: var(--muted); }
-
-    .btn-danger {
-      background: transparent;
-      color: var(--red);
-      border: 1px solid rgba(239,68,68,0.3);
-    }
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: var(--orange-dark); }
+    .btn-outline { background: transparent; color: var(--orange); border: 1px solid var(--orange); }
+    .btn-outline:hover { background: var(--orange-bg); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid #333; }
+    .btn-ghost:hover { color: var(--text); border-color: #555; }
+    .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); font-size: 12px; padding: 6px 12px; }
     .btn-danger:hover { background: var(--red-bg); }
 
-    .btn-sm {
-      padding: 4px 10px;
-      font-size: 12px;
+    /* ── Daily Metrics Bar ── */
+    .daily-bar {
+      background: linear-gradient(135deg, var(--navy) 0%, #112244 100%);
+      border-bottom: 1px solid var(--orange-border);
+      padding: 0 24px;
+      display: flex;
+      align-items: stretch;
+      gap: 0;
     }
 
-    .btn-icon {
-      padding: 6px;
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
+    .daily-item {
       display: flex;
-      align-items: center;
-    }
-    .btn-icon:hover { color: var(--text); border-color: var(--muted); }
-
-    /* ── Login screen ── */
-    #login-screen {
-      display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: calc(100vh - 60px);
-    }
-
-    .login-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 48px 40px;
+      padding: 10px 28px;
+      border-right: 1px solid rgba(255,255,255,0.08);
       text-align: center;
-      max-width: 400px;
-      width: 100%;
+      min-width: 120px;
     }
 
-    .login-card h2 {
-      font-size: 22px;
+    .daily-item:last-child { border-right: none; }
+
+    .daily-label {
+      font-size: 10px;
       font-weight: 700;
-      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--orange);
+      margin-bottom: 2px;
     }
 
-    .login-card p {
-      color: var(--muted);
-      margin-bottom: 28px;
-      line-height: 1.6;
+    .daily-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
     }
 
-    .jobber-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      background: #f5a623;
-      color: #1a0e00;
-      font-weight: 700;
-      font-size: 15px;
-      padding: 12px 24px;
-      border-radius: var(--radius-sm);
-      text-decoration: none;
-      transition: all 0.15s;
-    }
-    .jobber-btn:hover { background: #e6951a; transform: translateY(-1px); }
-
-    /* ── Main layout ── */
-    #dashboard {
-      max-width: 1300px;
-      margin: 0 auto;
-      padding: 24px;
+    .daily-sub {
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      margin-top: 1px;
     }
 
-    /* ── Toolbar ── */
-    .toolbar {
+    /* ── Tabs ── */
+    .tabs-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      padding: 14px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--orange); border-bottom-color: var(--orange); }
+
+    /* ── Content ── */
+    .tab-content { display: none; padding: 24px; }
+    .tab-content.active { display: block; }
+
+    /* ── Filters ── */
+    .filters {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
       flex-wrap: wrap;
     }
 
-    .toolbar-title {
-      font-size: 20px;
-      font-weight: 700;
-      flex: 1;
-    }
+    .filter-label { font-size: 12px; color: var(--muted); font-weight: 600; }
 
-    .filter-input {
-      background: var(--surface);
+    input[type="date"], select {
+      background: var(--surface2);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 7px 12px;
       border-radius: var(--radius-sm);
+      padding: 8px 12px;
       font-size: 13px;
+      outline: none;
+      cursor: pointer;
     }
-    .filter-input:focus { outline: none; border-color: var(--accent); }
 
-    select.filter-input option { background: var(--surface2); }
+    input[type="date"]:focus, select:focus { border-color: var(--orange); }
 
-    /* ── Stat cards ── */
-    .stats-grid {
+    /* ── Stat Cards ── */
+    .stat-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px;
@@ -237,45 +246,40 @@
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 3px;
-      background: var(--accent);
-      opacity: 0;
-      transition: opacity 0.2s;
     }
 
-    .stat-card.green::before { background: var(--green); opacity: 1; }
-    .stat-card.blue::before  { background: var(--blue); opacity: 1; }
-    .stat-card.yellow::before { background: var(--yellow); opacity: 1; }
-    .stat-card.purple::before { background: #a855f7; opacity: 1; }
+    .stat-card.orange::before { background: var(--orange); }
+    .stat-card.green::before { background: var(--green); }
+    .stat-card.blue::before { background: var(--navy-bright); }
+    .stat-card.yellow::before { background: var(--yellow); }
 
     .stat-label {
-      font-size: 12px;
-      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
+      color: var(--muted);
       margin-bottom: 8px;
     }
 
     .stat-value {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
+      font-size: 30px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
     }
 
     .stat-sub {
       font-size: 12px;
       color: var(--muted);
-      margin-top: 4px;
     }
 
-    /* ── Two column layout ── */
-    .main-grid {
+    /* ── Two-col layout ── */
+    .two-col {
       display: grid;
-      grid-template-columns: 1fr 320px;
+      grid-template-columns: 1fr 340px;
       gap: 20px;
-    }
-
-    @media (max-width: 900px) {
-      .main-grid { grid-template-columns: 1fr; }
     }
 
     /* ── Panel ── */
@@ -292,11 +296,23 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      font-weight: 600;
-      font-size: 14px;
+      background: var(--surface2);
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .panel-sub {
+      font-size: 12px;
+      color: var(--muted);
     }
 
     /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -306,633 +322,999 @@
       text-align: left;
       padding: 10px 16px;
       font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--muted);
+      background: var(--surface2);
       border-bottom: 1px solid var(--border);
-      white-space: nowrap;
     }
 
     td {
       padding: 12px 16px;
-      border-bottom: 1px solid rgba(46,49,71,0.5);
+      border-bottom: 1px solid var(--border);
       font-size: 13px;
+      vertical-align: middle;
     }
 
     tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
 
-    tr:hover td { background: rgba(255,255,255,0.02); }
-
-    .client-name { font-weight: 500; }
     .quote-num { color: var(--muted); font-size: 12px; }
-
-    .amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .amount { font-weight: 700; color: var(--text); }
 
     /* ── Status badges ── */
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 3px 8px;
+      padding: 3px 9px;
       border-radius: 20px;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.3px;
     }
 
-    .badge-won    { background: var(--green-bg);  color: var(--green); }
-    .badge-lost   { background: var(--red-bg);    color: var(--red); }
+    .badge-won { background: var(--green-bg); color: var(--green); }
+    .badge-lost { background: var(--red-bg); color: var(--red); }
     .badge-pending { background: var(--yellow-bg); color: var(--yellow); }
-    .badge-draft  { background: var(--surface2);  color: var(--muted); }
+    .badge-draft { background: rgba(107,122,153,0.1); color: var(--muted); }
+    .badge-paid { background: var(--green-bg); color: var(--green); }
+    .badge-outstanding { background: var(--yellow-bg); color: var(--yellow); }
 
-    /* ── Rep select in table ── */
+    /* ── Rep dropdown ── */
     .rep-select {
       background: var(--surface2);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 4px 8px;
       border-radius: 6px;
+      padding: 5px 8px;
       font-size: 12px;
       cursor: pointer;
-      max-width: 130px;
-    }
-    .rep-select:focus { outline: none; border-color: var(--accent); }
-
-    /* ── Rep leaderboard ── */
-    .rep-row {
-      padding: 14px 20px;
-      border-bottom: 1px solid rgba(46,49,71,0.5);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      max-width: 150px;
     }
 
-    .rep-row:last-child { border-bottom: none; }
+    /* ── Right sidebar ── */
+    .sidebar { display: flex; flex-direction: column; gap: 16px; }
 
-    .rep-row-top {
+    /* ── Rep list ── */
+    .rep-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 10px;
     }
 
-    .rep-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #4f7df3, #7c3aed);
+    .rep-item:last-child { border-bottom: none; }
+
+    .rep-info { flex: 1; min-width: 0; }
+    .rep-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+
+    .rep-bar-wrap { height: 4px; background: var(--surface3); border-radius: 2px; margin-top: 4px; }
+    .rep-bar { height: 100%; background: var(--orange); border-radius: 2px; transition: width 0.3s; }
+
+    .rep-stats-row {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .rep-stat-val { color: var(--text); font-weight: 700; }
+
+    /* ── Breakdown ── */
+    .breakdown-item {
       display: flex;
       align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
-      flex-shrink: 0;
+      justify-content: space-between;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
     }
 
-    .rep-info { display: flex; align-items: center; gap: 10px; }
+    .breakdown-item:last-child { border-bottom: none; }
+    .breakdown-label { color: var(--muted); }
+    .breakdown-val { font-weight: 700; }
+    .val-green { color: var(--green); }
+    .val-yellow { color: var(--yellow); }
+    .val-red { color: var(--red); }
+    .val-muted { color: var(--muted); }
 
-    .rep-name { font-weight: 600; font-size: 13px; }
-    .rep-meta { font-size: 11px; color: var(--muted); }
+    /* ── Bar chart ── */
+    .chart-wrap { padding: 16px; }
 
-    .rep-revenue { font-weight: 700; color: var(--green); }
-
-    .progress-bar {
-      height: 4px;
-      background: var(--surface2);
-      border-radius: 2px;
-      overflow: hidden;
+    .chart-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 120px;
+      margin-bottom: 6px;
     }
 
-    .progress-fill {
+    .chart-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
       height: 100%;
-      background: linear-gradient(90deg, #4f7df3, #22c55e);
-      border-radius: 2px;
-      transition: width 0.4s ease;
+      justify-content: flex-end;
     }
 
-    /* ── Manage reps ── */
+    .chart-bar {
+      width: 100%;
+      border-radius: 3px 3px 0 0;
+      min-height: 4px;
+      transition: height 0.3s;
+    }
+
+    .chart-bar.revenue { background: var(--orange); }
+    .chart-bar.won { background: var(--navy-bright); }
+
+    .chart-label {
+      font-size: 9px;
+      color: var(--muted);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
+
+    /* ── Win rate donut ── */
+    .donut-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      gap: 12px;
+    }
+
+    .donut-container { position: relative; width: 120px; height: 120px; }
+
+    .donut-svg { transform: rotate(-90deg); }
+
+    .donut-center {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .donut-pct { font-size: 22px; font-weight: 800; color: var(--text); }
+    .donut-sub { font-size: 10px; color: var(--muted); }
+
+    .donut-stats {
+      display: flex;
+      gap: 20px;
+      text-align: center;
+    }
+
+    .donut-stat-val { font-size: 18px; font-weight: 800; display: block; }
+    .donut-stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Add rep form ── */
     .add-rep-form {
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
       display: flex;
       gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
     }
 
-    .add-rep-input {
+    .add-rep-form input {
       flex: 1;
       background: var(--surface2);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 7px 10px;
       border-radius: var(--radius-sm);
+      padding: 7px 10px;
       font-size: 13px;
+      outline: none;
     }
-    .add-rep-input:focus { outline: none; border-color: var(--accent); }
+
+    .add-rep-form input:focus { border-color: var(--orange); }
 
     /* ── Empty state ── */
     .empty {
-      text-align: center;
-      padding: 48px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
       color: var(--muted);
+      text-align: center;
+      gap: 8px;
     }
 
-    .empty-icon { font-size: 32px; margin-bottom: 12px; }
+    .empty-icon { font-size: 32px; }
+    .empty-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .empty-sub { font-size: 12px; }
+
+    /* ── Login screen ── */
+    #login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 30%, #1e3a6e22 0%, transparent 60%);
+    }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 380px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .login-logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      margin: 0 auto 20px;
+      border: 3px solid var(--orange);
+      box-shadow: 0 0 20px rgba(224,120,48,0.3);
+    }
+
+    .login-card h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      color: #fff;
+    }
+
+    .login-card p {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .login-card .btn-primary {
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+      border-radius: 10px;
+    }
 
     /* ── Loading spinner ── */
     .spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
+      width: 36px; height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--orange);
       border-radius: 50%;
       animation: spin 0.7s linear infinite;
-      vertical-align: middle;
+      margin: 40px auto;
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Toast ── */
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-      font-size: 13px;
-      z-index: 999;
-      animation: slideUp 0.2s ease;
-    }
-
-    @keyframes slideUp {
-      from { transform: translateY(10px); opacity: 0; }
-      to   { transform: translateY(0); opacity: 1; }
-    }
-
-    /* ── Modal ── */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-    }
-
-    .modal {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 24px;
-      width: 340px;
-    }
-
-    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
-
-    .modal-footer {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-      margin-top: 16px;
+    /* ── Orange accent section headers ── */
+    .section-heading {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--orange);
+      padding: 8px 16px;
+      background: var(--orange-bg);
+      border-bottom: 1px solid var(--orange-border);
     }
   </style>
 </head>
 <body>
 
-<!-- Header -->
-<header class="header">
-  <div class="logo">
-    <div class="logo-icon">💧</div>
-    JD Sales Dashboard
-  </div>
-  <div class="header-right" id="header-right">
-    <span class="connection-dot disconnected" id="conn-dot"></span>
-    <span id="conn-label" style="color:var(--muted);font-size:13px">Not connected</span>
-  </div>
-</header>
-
-<!-- Login Screen -->
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════════════════ -->
 <div id="login-screen" style="display:none">
   <div class="login-card">
-    <div style="font-size:48px;margin-bottom:16px">💧</div>
-    <h2>JD Sales Dashboard</h2>
-    <p>Connect your Jobber account to start tracking quotes, win rates, and sales rep performance.</p>
-    <a href="/auth/jobber" class="jobber-btn">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-      Connect Jobber
-    </a>
+    <img src="/logo.png" alt="JD Pressure Washing" class="login-logo" onerror="this.style.display='none'" />
+    <h2>JD Pressure Washing</h2>
+    <p>Connect your Jobber account to access your sales dashboard and performance metrics.</p>
+    <button class="btn btn-primary" onclick="location.href='/auth/jobber'">Connect Jobber Account</button>
   </div>
 </div>
 
-<!-- Dashboard -->
-<div id="dashboard" style="display:none">
+<!-- ══ MAIN APP ══════════════════════════════════════════════════════════════ -->
+<div id="app" style="display:none">
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <div class="toolbar-title">Sales Overview</div>
-    <input type="date" class="filter-input" id="filter-from" title="From date" />
-    <input type="date" class="filter-input" id="filter-to" title="To date" />
-    <select class="filter-input" id="filter-rep">
-      <option value="">All Reps</option>
-    </select>
-    <button class="btn btn-outline" onclick="clearFilters()">Clear</button>
-    <button class="btn btn-primary" onclick="loadStats()" id="refresh-btn">
-      ↻ Refresh
-    </button>
-    <a href="/auth/logout" class="btn btn-danger">Disconnect</a>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <img src="/logo.png" alt="JD Pressure Washing" class="logo-img" onerror="this.style.display='none'" />
+      <div class="logo-text">
+        <h1>JD Pressure Washing</h1>
+        <span>Sales Dashboard</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-badge connected" id="status-badge">
+        <div class="status-dot"></div>
+        Jobber Connected
+      </div>
+      <button class="btn btn-ghost" id="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+      <button class="btn btn-danger" onclick="location.href='/auth/logout'">Disconnect</button>
+    </div>
+  </header>
+
+  <!-- Daily Metrics Bar -->
+  <div class="daily-bar" id="daily-bar">
+    <div class="daily-item">
+      <div class="daily-label">Today's Quotes</div>
+      <div class="daily-value" id="today-sent">—</div>
+      <div class="daily-sub">sent today</div>
+    </div>
+    <div class="daily-item">
+      <div class="daily-label">Today's Won</div>
+      <div class="daily-value" id="today-won">—</div>
+      <div class="daily-sub">jobs approved</div>
+    </div>
+    <div class="daily-item">
+      <div class="daily-label">Today's Revenue</div>
+      <div class="daily-value" id="today-revenue">—</div>
+      <div class="daily-sub">from won quotes</div>
+    </div>
+    <div class="daily-item">
+      <div class="daily-label">Pending</div>
+      <div class="daily-value" id="today-pending">—</div>
+      <div class="daily-sub">awaiting response</div>
+    </div>
   </div>
 
-  <!-- Stats -->
-  <div class="stats-grid">
-    <div class="stat-card green">
-      <div class="stat-label">Avg Ticket Price</div>
-      <div class="stat-value" id="stat-avg">—</div>
-      <div class="stat-sub" id="stat-avg-sub">won quotes</div>
+  <!-- Tabs -->
+  <div class="tabs-bar">
+    <button class="tab-btn active" onclick="switchTab('overview', this)">Overview</button>
+    <button class="tab-btn" onclick="switchTab('revenue', this)">Revenue</button>
+    <button class="tab-btn" onclick="switchTab('quotes', this)">All Quotes</button>
+  </div>
+
+  <!-- ── TAB: OVERVIEW ─────────────────────────────────────────────────── -->
+  <div class="tab-content active" id="tab-overview">
+
+    <div class="filters">
+      <span class="filter-label">Filter:</span>
+      <input type="date" id="from-date" onchange="loadStats()" />
+      <input type="date" id="to-date" onchange="loadStats()" />
+      <select id="rep-filter" onchange="loadStats()">
+        <option value="">All Reps</option>
+      </select>
+      <button class="btn btn-ghost" onclick="clearFilters()">Clear</button>
     </div>
-    <div class="stat-card blue">
-      <div class="stat-label">Win Rate</div>
-      <div class="stat-value" id="stat-winrate">—</div>
-      <div class="stat-sub" id="stat-winrate-sub">of sent quotes</div>
+
+    <!-- Stat Cards -->
+    <div class="stat-grid">
+      <div class="stat-card orange">
+        <div class="stat-label">Avg Ticket Price</div>
+        <div class="stat-value" id="avg-ticket">—</div>
+        <div class="stat-sub" id="avg-ticket-sub">from won quotes</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value" id="win-rate">—</div>
+        <div class="stat-sub" id="win-rate-sub">quotes sent vs won</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Total Revenue</div>
+        <div class="stat-value" id="total-revenue">—</div>
+        <div class="stat-sub" id="total-revenue-sub">from won quotes</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Quotes Sent</div>
+        <div class="stat-value" id="quotes-sent">—</div>
+        <div class="stat-sub" id="quotes-sent-sub">total activity</div>
+      </div>
     </div>
-    <div class="stat-card purple">
-      <div class="stat-label">Total Revenue</div>
-      <div class="stat-value" id="stat-revenue">—</div>
-      <div class="stat-sub" id="stat-revenue-sub">from won quotes</div>
-    </div>
-    <div class="stat-card yellow">
-      <div class="stat-label">Quotes Sent</div>
-      <div class="stat-value" id="stat-sent">—</div>
-      <div class="stat-sub" id="stat-breakdown">won · lost · pending</div>
+
+    <div class="two-col">
+      <!-- Recent Quotes Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Recent Quotes</div>
+            <div class="panel-sub" id="quotes-count">Loading...</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <div id="quotes-loading" class="spinner"></div>
+          <table id="quotes-table" style="display:none">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Client</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Sales Rep</th>
+              </tr>
+            </thead>
+            <tbody id="quotes-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <!-- Sales Reps -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Sales Reps</div>
+            <button class="btn btn-outline" style="font-size:12px;padding:5px 10px" onclick="toggleRepForm()">+ Add Rep</button>
+          </div>
+          <div id="rep-list">
+            <div class="empty">
+              <div class="empty-icon">👥</div>
+              <div class="empty-title">No reps yet</div>
+              <div class="empty-sub">Add sales reps to track performance</div>
+            </div>
+          </div>
+          <div class="add-rep-form" id="rep-form" style="display:none">
+            <input type="text" id="new-rep-name" placeholder="Rep name..." />
+            <button class="btn btn-primary" onclick="addRep()">Add</button>
+          </div>
+        </div>
+
+        <!-- Quote Breakdown -->
+        <div class="panel">
+          <div class="section-heading">Quote Breakdown</div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Won</span>
+            <span class="breakdown-val val-green" id="bd-won">—</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Pending</span>
+            <span class="breakdown-val val-yellow" id="bd-pending">—</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Lost</span>
+            <span class="breakdown-val val-red" id="bd-lost">—</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Draft</span>
+            <span class="breakdown-val val-muted" id="bd-draft">—</span>
+          </div>
+        </div>
+
+        <!-- Monthly Chart -->
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">Monthly Revenue</div>
+          </div>
+          <div class="chart-wrap">
+            <div class="chart-bars" id="monthly-chart"></div>
+            <div class="chart-legend">
+              <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>Revenue</div>
+              <div class="legend-item"><div class="legend-dot" style="background:var(--navy-bright)"></div>Jobs Won</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Main grid -->
-  <div class="main-grid">
+  <!-- ── TAB: REVENUE ──────────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-revenue">
 
-    <!-- Quotes table -->
+    <div class="stat-grid">
+      <div class="stat-card green">
+        <div class="stat-label">Collected Revenue</div>
+        <div class="stat-value" id="inv-paid-rev">—</div>
+        <div class="stat-sub" id="inv-paid-sub">from paid invoices</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Outstanding</div>
+        <div class="stat-value" id="inv-out-rev">—</div>
+        <div class="stat-sub" id="inv-out-sub">unpaid invoices</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Avg Invoice</div>
+        <div class="stat-value" id="inv-avg">—</div>
+        <div class="stat-sub">per paid invoice</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Jobs Won / Quotes</div>
+        <div class="stat-value" id="rev-win-rate">—</div>
+        <div class="stat-sub" id="rev-win-sub">overall win rate</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- Invoice table -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Recent Invoices</div>
+          <div class="panel-sub" id="inv-count">Loading...</div>
+        </div>
+        <div class="table-wrap">
+          <div id="inv-loading" class="spinner"></div>
+          <table id="inv-table" style="display:none">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Client</th>
+                <th>Subject</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="inv-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Win rate donut + breakdown -->
+      <div class="sidebar">
+        <div class="panel">
+          <div class="panel-header"><div class="panel-title">Quote Win Rate</div></div>
+          <div class="donut-wrap">
+            <div class="donut-container">
+              <svg class="donut-svg" width="120" height="120" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="48" fill="none" stroke="#1a2335" stroke-width="14"/>
+                <circle cx="60" cy="60" r="48" fill="none" stroke="#1e3a6e" stroke-width="14"
+                  stroke-dasharray="301.6" stroke-dashoffset="301.6" id="donut-bg-ring"/>
+                <circle cx="60" cy="60" r="48" fill="none" stroke="#e07830" stroke-width="14"
+                  stroke-dasharray="301.6" stroke-dashoffset="301.6" id="donut-ring" stroke-linecap="round"/>
+              </svg>
+              <div class="donut-center">
+                <div class="donut-pct" id="donut-pct">—</div>
+                <div class="donut-sub">win rate</div>
+              </div>
+            </div>
+            <div class="donut-stats">
+              <div>
+                <span class="donut-stat-val val-green" id="donut-won">—</span>
+                <span class="donut-stat-label">Won</span>
+              </div>
+              <div>
+                <span class="donut-stat-val val-red" id="donut-lost">—</span>
+                <span class="donut-stat-label">Lost</span>
+              </div>
+              <div>
+                <span class="donut-stat-val val-yellow" id="donut-pending">—</span>
+                <span class="donut-stat-label">Pending</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Invoice breakdown -->
+        <div class="panel">
+          <div class="section-heading">Invoice Breakdown</div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Paid</span>
+            <span class="breakdown-val val-green" id="bd-inv-paid">—</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Outstanding</span>
+            <span class="breakdown-val val-yellow" id="bd-inv-out">—</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Draft</span>
+            <span class="breakdown-val val-muted" id="bd-inv-draft">—</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="breakdown-label">Total Invoices</span>
+            <span class="breakdown-val" id="bd-inv-total">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: ALL QUOTES ───────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-quotes">
+    <div class="filters">
+      <span class="filter-label">Filter:</span>
+      <input type="date" id="from-date2" onchange="loadStats()" />
+      <input type="date" id="to-date2" onchange="loadStats()" />
+      <select id="rep-filter2" onchange="loadStats()">
+        <option value="">All Reps</option>
+      </select>
+      <button class="btn btn-ghost" onclick="clearFilters()">Clear</button>
+    </div>
     <div class="panel">
       <div class="panel-header">
-        Recent Quotes
-        <span id="quote-count" style="color:var(--muted);font-size:12px;font-weight:400"></span>
+        <div class="panel-title">All Quotes</div>
+        <div class="panel-sub" id="all-quotes-count">—</div>
       </div>
-      <div id="quotes-loading" class="empty">
-        <div><span class="spinner"></span> Loading quotes…</div>
-      </div>
-      <div id="quotes-empty" class="empty" style="display:none">
-        <div class="empty-icon">📋</div>
-        <div>No quotes found</div>
-      </div>
-      <div id="quotes-wrap" style="overflow-x:auto;display:none">
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>#</th>
               <th>Client</th>
               <th>Title</th>
-              <th>Sales Rep</th>
               <th>Status</th>
               <th>Amount</th>
               <th>Date</th>
+              <th>Sales Rep</th>
             </tr>
           </thead>
-          <tbody id="quotes-body"></tbody>
+          <tbody id="all-quotes-body"></tbody>
         </table>
       </div>
     </div>
-
-    <!-- Sidebar -->
-    <div style="display:flex;flex-direction:column;gap:20px">
-
-      <!-- Rep leaderboard -->
-      <div class="panel">
-        <div class="panel-header">
-          Sales Reps
-          <button class="btn btn-sm btn-outline" onclick="openManageReps()">Manage</button>
-        </div>
-        <div id="reps-loading" style="padding:20px;text-align:center;color:var(--muted)">
-          <span class="spinner"></span>
-        </div>
-        <div id="reps-list"></div>
-        <div id="reps-empty" class="empty" style="display:none;padding:24px">
-          <div class="empty-icon" style="font-size:24px">👤</div>
-          <div style="font-size:13px">No reps added yet</div>
-          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openManageReps()">Add Rep</button>
-        </div>
-      </div>
-
-      <!-- Quick stats -->
-      <div class="panel">
-        <div class="panel-header">Quote Breakdown</div>
-        <div style="padding:16px;display:flex;flex-direction:column;gap:12px" id="breakdown-list">
-          <div style="color:var(--muted);font-size:13px;text-align:center">Loading…</div>
-        </div>
-      </div>
-
-    </div>
   </div>
-</div>
 
-<!-- Manage Reps Modal -->
-<div class="modal-overlay" id="reps-modal" style="display:none" onclick="if(event.target===this)closeManageReps()">
-  <div class="modal">
-    <h3>Manage Sales Reps</h3>
-    <div id="modal-reps-list" style="margin-bottom:12px;max-height:260px;overflow-y:auto"></div>
-    <div class="add-rep-form" style="padding:0;border:none;gap:8px">
-      <input class="add-rep-input" id="new-rep-name" placeholder="Rep name…" onkeydown="if(event.key==='Enter')addRep()" />
-      <button class="btn btn-primary btn-sm" onclick="addRep()">Add</button>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-outline" onclick="closeManageReps()">Done</button>
-    </div>
-  </div>
-</div>
+</div><!-- /#app -->
 
 <script>
-  const fmt = (n) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const pct = (n) => n == null ? '—' : n.toFixed(1) + '%';
-  const dateStr = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+let statsData = null;
+let repsData = [];
 
-  let allReps = [];
-  let lastStats = null;
+// ── Startup ───────────────────────────────────────────────────────────────────
 
-  // ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const r = await fetch('/api/status');
+  const { connected } = await r.json();
+  if (!connected) {
+    document.getElementById('login-screen').style.display = 'flex';
+  } else {
+    document.getElementById('app').style.display = 'block';
+    await loadAll();
+  }
+}
 
-  async function init() {
-    const { connected } = await fetch('/api/status').then(r => r.json());
-    const dot = document.getElementById('conn-dot');
-    const label = document.getElementById('conn-label');
+async function loadAll() {
+  await Promise.all([loadReps(), loadStats()]);
+  loadInvoiceStats();
+}
 
-    if (!connected) {
-      dot.className = 'connection-dot disconnected';
-      label.textContent = 'Not connected';
-      document.getElementById('login-screen').style.display = 'flex';
-      document.getElementById('dashboard').style.display = 'none';
-      return;
-    }
+// ── Tabs ──────────────────────────────────────────────────────────────────────
 
-    dot.className = 'connection-dot';
-    label.textContent = 'Jobber connected';
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
 
-    await loadReps();
-    populateRepFilter();
-    await loadStats();
+// ── Filters ───────────────────────────────────────────────────────────────────
+
+function clearFilters() {
+  ['from-date','to-date','rep-filter','from-date2','to-date2','rep-filter2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  loadStats();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+async function loadStats() {
+  const from = document.getElementById('from-date')?.value || document.getElementById('from-date2')?.value || '';
+  const to = document.getElementById('to-date')?.value || document.getElementById('to-date2')?.value || '';
+  const repId = document.getElementById('rep-filter')?.value || document.getElementById('rep-filter2')?.value || '';
+
+  let url = '/api/stats';
+  const params = [];
+  if (from) params.push('from=' + from);
+  if (to) params.push('to=' + to);
+  if (repId) params.push('repId=' + repId);
+  if (params.length) url += '?' + params.join('&');
+
+  document.getElementById('quotes-loading').style.display = 'block';
+  document.getElementById('quotes-table').style.display = 'none';
+
+  try {
+    const r = await fetch(url);
+    statsData = await r.json();
+    renderStats(statsData);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderStats(data) {
+  const s = data.summary;
+  const d = data.daily || {};
+
+  // Daily bar
+  document.getElementById('today-sent').textContent = d.sent ?? '0';
+  document.getElementById('today-won').textContent = d.won ?? '0';
+  document.getElementById('today-revenue').textContent = fmt(d.revenue || 0);
+  document.getElementById('today-pending').textContent = d.pending ?? '0';
+
+  // Stat cards
+  document.getElementById('avg-ticket').textContent = fmt(s.avgTicket);
+  document.getElementById('avg-ticket-sub').textContent = s.wonQuotes + ' won quotes';
+  document.getElementById('win-rate').textContent = s.winRate.toFixed(1) + '%';
+  document.getElementById('win-rate-sub').textContent = s.wonQuotes + ' of ' + s.sentQuotes + ' sent';
+  document.getElementById('total-revenue').textContent = fmt(s.totalRevenue);
+  document.getElementById('total-revenue-sub').textContent = 'from ' + s.wonQuotes + ' won quotes';
+  document.getElementById('quotes-sent').textContent = s.sentQuotes;
+  document.getElementById('quotes-sent-sub').textContent = s.wonQuotes + ' won · ' + s.lostQuotes + ' lost · ' + s.pendingQuotes + ' pending';
+
+  // Breakdown
+  document.getElementById('bd-won').textContent = s.wonQuotes;
+  document.getElementById('bd-pending').textContent = s.pendingQuotes;
+  document.getElementById('bd-lost').textContent = s.lostQuotes;
+  document.getElementById('bd-draft').textContent = s.draftQuotes;
+
+  // Revenue tab win rate
+  document.getElementById('rev-win-rate').textContent = s.winRate.toFixed(1) + '%';
+  document.getElementById('rev-win-sub').textContent = s.wonQuotes + ' won / ' + s.sentQuotes + ' sent';
+
+  // Donut
+  const pct = s.winRate / 100;
+  const circ = 301.6;
+  document.getElementById('donut-ring').setAttribute('stroke-dashoffset', circ - (circ * pct));
+  document.getElementById('donut-bg-ring').setAttribute('stroke-dashoffset', 0);
+  document.getElementById('donut-pct').textContent = s.winRate.toFixed(1) + '%';
+  document.getElementById('donut-won').textContent = s.wonQuotes;
+  document.getElementById('donut-lost').textContent = s.lostQuotes;
+  document.getElementById('donut-pending').textContent = s.pendingQuotes;
+
+  // Quotes table
+  renderQuotesTable(data.recentQuotes || []);
+  document.getElementById('quotes-count').textContent = (data.recentQuotes?.length || 0) + ' of ' + s.totalQuotes + ' quotes';
+  document.getElementById('all-quotes-count').textContent = s.totalQuotes + ' total quotes';
+  renderAllQuotes(data.recentQuotes || []);
+
+  // Rep leaderboard
+  renderReps(data.repStats || {});
+
+  // Monthly chart
+  renderMonthlyChart(data.monthly || {});
+}
+
+// ── Quotes Tables ─────────────────────────────────────────────────────────────
+
+function renderQuotesTable(quotes) {
+  const tbody = document.getElementById('quotes-body');
+  tbody.innerHTML = quotes.map(q => `
+    <tr>
+      <td class="quote-num">#${q.number}</td>
+      <td>${q.client}</td>
+      <td>${statusBadge(q.status)}</td>
+      <td class="amount">${fmt(q.total)}</td>
+      <td>${fmtDate(q.date)}</td>
+      <td>
+        <select class="rep-select" onchange="assignRep('${q.id}', this.value)">
+          <option value="">— Unassigned —</option>
+          ${repsData.map(r => `<option value="${r.id}" ${q.repId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+        </select>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('quotes-loading').style.display = 'none';
+  document.getElementById('quotes-table').style.display = 'table';
+}
+
+function renderAllQuotes(quotes) {
+  document.getElementById('all-quotes-body').innerHTML = quotes.map(q => `
+    <tr>
+      <td class="quote-num">#${q.number}</td>
+      <td>${q.client}</td>
+      <td style="color:var(--muted);font-size:12px">${q.title}</td>
+      <td>${statusBadge(q.status)}</td>
+      <td class="amount">${fmt(q.total)}</td>
+      <td>${fmtDate(q.date)}</td>
+      <td>
+        <select class="rep-select" onchange="assignRep('${q.id}', this.value)">
+          <option value="">— Unassigned —</option>
+          ${repsData.map(r => `<option value="${r.id}" ${q.repId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
+        </select>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ── Invoice Stats ─────────────────────────────────────────────────────────────
+
+async function loadInvoiceStats() {
+  document.getElementById('inv-loading').style.display = 'block';
+  document.getElementById('inv-table').style.display = 'none';
+  try {
+    const r = await fetch('/api/invoice-stats');
+    const data = await r.json();
+    renderInvoiceStats(data);
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+function renderInvoiceStats(data) {
+  const s = data.summary || {};
+  document.getElementById('inv-paid-rev').textContent = fmt(s.paidRevenue || 0);
+  document.getElementById('inv-paid-sub').textContent = s.paid + ' paid invoices';
+  document.getElementById('inv-out-rev').textContent = fmt(s.outstandingRevenue || 0);
+  document.getElementById('inv-out-sub').textContent = s.outstanding + ' unpaid';
+  document.getElementById('inv-avg').textContent = fmt(s.avgInvoice || 0);
+  document.getElementById('inv-count').textContent = (data.recentInvoices?.length || 0) + ' of ' + s.total + ' invoices';
+
+  document.getElementById('bd-inv-paid').textContent = s.paid;
+  document.getElementById('bd-inv-out').textContent = s.outstanding;
+  document.getElementById('bd-inv-draft').textContent = s.draft;
+  document.getElementById('bd-inv-total').textContent = s.total;
+
+  // Invoice table
+  const tbody = document.getElementById('inv-body');
+  tbody.innerHTML = (data.recentInvoices || []).map(i => `
+    <tr>
+      <td class="quote-num">#${i.number || '—'}</td>
+      <td>${i.client}</td>
+      <td style="color:var(--muted);font-size:12px">${i.subject}</td>
+      <td>${invBadge(i.status)}</td>
+      <td class="amount">${fmt(i.total)}</td>
+      <td>${fmtDate(i.date)}</td>
+    </tr>
+  `).join('');
+  document.getElementById('inv-loading').style.display = 'none';
+  document.getElementById('inv-table').style.display = 'table';
+}
+
+// ── Monthly Chart ─────────────────────────────────────────────────────────────
+
+function renderMonthlyChart(monthly) {
+  const keys = Object.keys(monthly).sort();
+  if (!keys.length) return;
+
+  const maxRevenue = Math.max(...keys.map(k => monthly[k].revenue), 1);
+  const maxWon = Math.max(...keys.map(k => monthly[k].won), 1);
+
+  const shortMonth = k => {
+    const [y, m] = k.split('-');
+    return new Date(y, m - 1).toLocaleString('default', { month: 'short' });
+  };
+
+  document.getElementById('monthly-chart').innerHTML = keys.map(k => {
+    const rev = monthly[k].revenue;
+    const won = monthly[k].won;
+    const revH = Math.max((rev / maxRevenue) * 100, won > 0 || rev > 0 ? 4 : 0);
+    const wonH = Math.max((won / maxWon) * 60, won > 0 ? 4 : 0);
+    return `
+      <div class="chart-col">
+        <div style="display:flex;gap:2px;width:100%;align-items:flex-end;height:110px">
+          <div class="chart-bar revenue" style="height:${revH}%;flex:1" title="${fmt(rev)}"></div>
+          <div class="chart-bar won" style="height:${wonH}%;flex:1" title="${won} won"></div>
+        </div>
+        <div class="chart-label">${shortMonth(k)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Reps ──────────────────────────────────────────────────────────────────────
+
+async function loadReps() {
+  const r = await fetch('/api/reps');
+  repsData = await r.json();
+  populateRepFilters();
+}
+
+function populateRepFilters() {
+  const opts = repsData.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+  ['rep-filter','rep-filter2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<option value="">All Reps</option>' + opts;
+  });
+}
+
+function renderReps(repStats) {
+  const list = document.getElementById('rep-list');
+  if (!repsData.length) {
+    list.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">👥</div>
+        <div class="empty-title">No reps yet</div>
+        <div class="empty-sub">Add sales reps to track performance</div>
+      </div>`;
+    return;
   }
 
-  // ── Reps ─────────────────────────────────────────────────────────────────────
+  const sorted = [...repsData].sort((a, b) => (repStats[b.id]?.revenue || 0) - (repStats[a.id]?.revenue || 0));
+  const maxRev = Math.max(...sorted.map(r => repStats[r.id]?.revenue || 0), 1);
 
-  async function loadReps() {
-    allReps = await fetch('/api/reps').then(r => r.json());
-    renderRepSidebar();
-  }
-
-  function populateRepFilter() {
-    const sel = document.getElementById('filter-rep');
-    // Clear existing options except "All Reps"
-    while (sel.options.length > 1) sel.remove(1);
-    for (const r of allReps) {
-      const o = new Option(r.name, r.id);
-      sel.add(o);
-    }
-  }
-
-  function renderRepSidebar() {
-    const loading = document.getElementById('reps-loading');
-    const list = document.getElementById('reps-list');
-    const empty = document.getElementById('reps-empty');
-    loading.style.display = 'none';
-
-    if (!allReps.length) {
-      list.innerHTML = '';
-      empty.style.display = 'block';
-      return;
-    }
-    empty.style.display = 'none';
-
-    const stats = lastStats?.repStats || {};
-    const maxRevenue = Math.max(...allReps.map(r => stats[r.id]?.revenue || 0), 1);
-
-    list.innerHTML = allReps.map(r => {
-      const s = stats[r.id] || { sent: 0, won: 0, winRate: 0, revenue: 0 };
-      const pctWidth = ((s.revenue / maxRevenue) * 100).toFixed(1);
-      const initials = r.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-      return `
-        <div class="rep-row">
-          <div class="rep-row-top">
-            <div class="rep-info">
-              <div class="rep-avatar">${initials}</div>
-              <div>
-                <div class="rep-name">${r.name}</div>
-                <div class="rep-meta">${s.won}/${s.sent} won · ${pct(s.winRate)} rate</div>
-              </div>
-            </div>
-            <div class="rep-revenue">${fmt(s.revenue)}</div>
+  list.innerHTML = sorted.map(rep => {
+    const s = repStats[rep.id] || { sent: 0, won: 0, winRate: 0, revenue: 0 };
+    const barPct = Math.round((s.revenue / maxRev) * 100);
+    return `
+      <div class="rep-item">
+        <div class="rep-info">
+          <div class="rep-name">${rep.name}</div>
+          <div class="rep-stats-row">
+            <span><span class="rep-stat-val">${s.won}</span> won</span>
+            <span><span class="rep-stat-val">${s.sent}</span> sent</span>
+            <span><span class="rep-stat-val">${s.winRate.toFixed(0)}%</span></span>
+            <span style="color:var(--orange)"><span class="rep-stat-val">${fmt(s.revenue)}</span></span>
           </div>
-          <div class="progress-bar">
-            <div class="progress-fill" style="width:${pctWidth}%"></div>
-          </div>
-        </div>`;
-    }).join('');
-  }
+          <div class="rep-bar-wrap"><div class="rep-bar" style="width:${barPct}%"></div></div>
+        </div>
+        <button class="btn btn-danger" onclick="deleteRep('${rep.id}')">✕</button>
+      </div>`;
+  }).join('');
+}
 
-  async function addRep() {
-    const input = document.getElementById('new-rep-name');
-    const name = input.value.trim();
-    if (!name) return;
-    const rep = await fetch('/api/reps', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    }).then(r => r.json());
-    allReps.push(rep);
-    input.value = '';
-    populateRepFilter();
-    renderModalRepList();
-    renderRepSidebar();
-    showToast(`Added ${rep.name}`);
-  }
+function toggleRepForm() {
+  const f = document.getElementById('rep-form');
+  f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+  if (f.style.display !== 'none') document.getElementById('new-rep-name').focus();
+}
 
-  async function deleteRep(id) {
-    if (!confirm('Remove this rep? Their quote assignments will be cleared.')) return;
-    await fetch(`/api/reps/${id}`, { method: 'DELETE' });
-    allReps = allReps.filter(r => r.id !== id);
-    populateRepFilter();
-    renderModalRepList();
-    renderRepSidebar();
-    await loadStats();
-    showToast('Rep removed');
-  }
+async function addRep() {
+  const input = document.getElementById('new-rep-name');
+  const name = input.value.trim();
+  if (!name) return;
+  await fetch('/api/reps', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+  input.value = '';
+  document.getElementById('rep-form').style.display = 'none';
+  await loadReps();
+  await loadStats();
+}
 
-  function openManageReps() {
-    renderModalRepList();
-    document.getElementById('reps-modal').style.display = 'flex';
-    setTimeout(() => document.getElementById('new-rep-name').focus(), 50);
-  }
+async function deleteRep(id) {
+  if (!confirm('Remove this rep?')) return;
+  await fetch('/api/reps/' + id, { method: 'DELETE' });
+  await loadReps();
+  await loadStats();
+}
 
-  function closeManageReps() {
-    document.getElementById('reps-modal').style.display = 'none';
-  }
+async function assignRep(quoteId, repId) {
+  await fetch('/api/assignments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quoteId, repId }) });
+}
 
-  function renderModalRepList() {
-    const el = document.getElementById('modal-reps-list');
-    if (!allReps.length) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">No reps yet.</div>';
-      return;
-    }
-    el.innerHTML = allReps.map(r => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
-        <span style="font-size:13px">${r.name}</span>
-        <button class="btn btn-danger btn-sm" onclick="deleteRep('${r.id}')">Remove</button>
-      </div>`).join('');
-  }
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-  // ── Stats ─────────────────────────────────────────────────────────────────────
+function fmt(n) {
+  return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-  async function loadStats() {
-    const btn = document.getElementById('refresh-btn');
-    btn.innerHTML = '<span class="spinner"></span>';
-    btn.disabled = true;
+function fmtDate(d) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
-    const params = new URLSearchParams();
-    const from = document.getElementById('filter-from').value;
-    const to   = document.getElementById('filter-to').value;
-    const repId = document.getElementById('filter-rep').value;
-    if (from) params.set('from', from);
-    if (to)   params.set('to', to);
-    if (repId) params.set('repId', repId);
+function statusBadge(s) {
+  const map = {
+    approved: ['badge-won', '✓ WON'],
+    converted: ['badge-won', '✓ WON'],
+    archived: ['badge-lost', '✗ LOST'],
+    awaiting_response: ['badge-pending', '⏳ PENDING'],
+    draft: ['badge-draft', 'DRAFT'],
+  };
+  const [cls, label] = map[s] || ['badge-draft', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
 
-    try {
-      const data = await fetch('/api/stats?' + params).then(r => r.json());
-      if (data.error) { showToast('Error: ' + data.error); return; }
-      lastStats = data;
-      renderStats(data);
-      renderRepSidebar();
-    } finally {
-      btn.innerHTML = '↻ Refresh';
-      btn.disabled = false;
-    }
-  }
+function invBadge(s) {
+  const map = {
+    paid: ['badge-paid', '✓ PAID'],
+    sent: ['badge-outstanding', 'SENT'],
+    overdue: ['badge-lost', 'OVERDUE'],
+    awaiting_payment: ['badge-outstanding', 'AWAITING'],
+    draft: ['badge-draft', 'DRAFT'],
+    void: ['badge-draft', 'VOID'],
+    bad_debt: ['badge-lost', 'BAD DEBT'],
+  };
+  const [cls, label] = map[s] || ['badge-draft', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
 
-  function renderStats(data) {
-    const s = data.summary;
-    document.getElementById('stat-avg').textContent = fmt(s.avgTicket);
-    document.getElementById('stat-avg-sub').textContent = `${s.wonQuotes} won quotes`;
-    document.getElementById('stat-winrate').textContent = pct(s.winRate);
-    document.getElementById('stat-winrate-sub').textContent = `${s.wonQuotes} of ${s.sentQuotes} sent`;
-    document.getElementById('stat-revenue').textContent = fmt(s.totalRevenue);
-    document.getElementById('stat-revenue-sub').textContent = 'from won quotes';
-    document.getElementById('stat-sent').textContent = s.sentQuotes;
-    document.getElementById('stat-breakdown').textContent =
-      `${s.wonQuotes} won · ${s.lostQuotes} lost · ${s.pendingQuotes} pending`;
-
-    // Breakdown panel
-    document.getElementById('breakdown-list').innerHTML = [
-      { label: 'Won',     count: s.wonQuotes,     cls: 'green' },
-      { label: 'Pending', count: s.pendingQuotes,  cls: 'yellow' },
-      { label: 'Lost',    count: s.lostQuotes,     cls: 'red' },
-      { label: 'Draft',   count: s.draftQuotes,    cls: 'muted' },
-    ].map(({ label, count, cls }) => `
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="color:var(--muted)">${label}</span>
-        <span style="font-weight:600;color:var(--${cls})">${count}</span>
-      </div>`).join('');
-
-    // Quotes table
-    const body = document.getElementById('quotes-body');
-    const wrap = document.getElementById('quotes-wrap');
-    const loading = document.getElementById('quotes-loading');
-    const empty = document.getElementById('quotes-empty');
-    loading.style.display = 'none';
-
-    if (!data.recentQuotes.length) {
-      wrap.style.display = 'none';
-      empty.style.display = 'block';
-      document.getElementById('quote-count').textContent = '';
-      return;
-    }
-
-    empty.style.display = 'none';
-    wrap.style.display = 'block';
-    document.getElementById('quote-count').textContent = `${data.recentQuotes.length} of ${s.totalQuotes}`;
-
-    body.innerHTML = data.recentQuotes.map(q => {
-      const { badge, label } = statusBadge(q.status);
-      const repOptions = allReps.map(r =>
-        `<option value="${r.id}" ${r.id === q.repId ? 'selected' : ''}>${r.name}</option>`
-      ).join('');
-
-      return `
-        <tr>
-          <td><span class="quote-num">#${q.number}</span></td>
-          <td><span class="client-name">${esc(q.client)}</span></td>
-          <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(q.title)}</td>
-          <td>
-            <select class="rep-select" onchange="assignRep('${q.id}', this.value)">
-              <option value="">— Unassigned —</option>
-              ${repOptions}
-            </select>
-          </td>
-          <td><span class="badge badge-${badge}">${label}</span></td>
-          <td class="amount">${fmt(q.total)}</td>
-          <td style="color:var(--muted);white-space:nowrap">${dateStr(q.date)}</td>
-        </tr>`;
-    }).join('');
-  }
-
-  function statusBadge(status) {
-    const map = {
-      approved:         { badge: 'won',     label: '✓ Won' },
-      converted:        { badge: 'won',     label: '✓ Won' },
-      archived:         { badge: 'lost',    label: '✗ Lost' },
-      awaiting_response:{ badge: 'pending', label: '⏳ Pending' },
-      draft:            { badge: 'draft',   label: 'Draft' },
-    };
-    return map[status] || { badge: 'draft', label: status };
-  }
-
-  async function assignRep(quoteId, repId) {
-    await fetch('/api/assignments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quoteId, repId: repId || null }),
-    });
-    // Refresh rep sidebar stats without full reload
-    const data = await fetch('/api/stats').then(r => r.json());
-    lastStats = data;
-    renderRepSidebar();
-    showToast('Rep assigned');
-  }
-
-  function clearFilters() {
-    document.getElementById('filter-from').value = '';
-    document.getElementById('filter-to').value = '';
-    document.getElementById('filter-rep').value = '';
-    loadStats();
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────────
-
-  function esc(str) {
-    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  let toastTimer;
-  function showToast(msg) {
-    const existing = document.querySelector('.toast');
-    if (existing) existing.remove();
-    clearTimeout(toastTimer);
-    const el = document.createElement('div');
-    el.className = 'toast';
-    el.textContent = msg;
-    document.body.appendChild(el);
-    toastTimer = setTimeout(() => el.remove(), 2800);
-  }
-
-  init();
+// ── Boot ──────────────────────────────────────────────────────────────────────
+init();
 </script>
 </body>
 </html>
