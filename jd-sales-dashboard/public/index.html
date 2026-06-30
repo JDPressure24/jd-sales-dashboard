@@ -613,6 +613,104 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Goal Bar ── */
+    .goal-bar-wrap {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .goal-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--orange);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      white-space: nowrap;
+    }
+
+    .goal-track {
+      flex: 1;
+      height: 10px;
+      background: var(--surface3);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .goal-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--navy-bright), var(--orange));
+      border-radius: 5px;
+      transition: width 0.6s ease;
+    }
+
+    .goal-pct {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .goal-amount {
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* ── Lead source chart ── */
+    .lead-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .lead-bar-row:last-child { border-bottom: none; }
+
+    .lead-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    .lead-track {
+      flex: 1;
+      height: 8px;
+      background: var(--surface3);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .lead-fill {
+      height: 100%;
+      background: var(--orange);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    .lead-count {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .lead-pct {
+      font-size: 11px;
+      color: var(--muted);
+      width: 38px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
     /* ── Orange accent section headers ── */
     .section-heading {
       font-size: 11px;
@@ -684,10 +782,21 @@
     </div>
   </div>
 
+  <!-- Monthly Goal Bar -->
+  <div class="goal-bar-wrap">
+    <div class="goal-label">🎯 Monthly Goal</div>
+    <div class="goal-track">
+      <div class="goal-fill" id="goal-fill" style="width:0%"></div>
+    </div>
+    <div class="goal-pct" id="goal-pct">0%</div>
+    <div class="goal-amount" id="goal-amount">$0 of $50,000</div>
+  </div>
+
   <!-- Tabs -->
   <div class="tabs-bar">
     <button class="tab-btn active" onclick="switchTab('overview', this)">Overview</button>
     <button class="tab-btn" onclick="switchTab('revenue', this)">Revenue</button>
+    <button class="tab-btn" onclick="switchTab('leads', this)">Lead Sources</button>
     <button class="tab-btn" onclick="switchTab('quotes', this)">All Quotes</button>
   </div>
 
@@ -748,6 +857,7 @@
                 <th>Amount</th>
                 <th>Date</th>
                 <th>Sales Rep</th>
+                <th>Lead Source</th>
               </tr>
             </thead>
             <tbody id="quotes-body"></tbody>
@@ -924,6 +1034,53 @@
     </div>
   </div>
 
+  <!-- ── TAB: LEAD SOURCES ────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-leads">
+
+    <div class="stat-grid">
+      <div class="stat-card orange">
+        <div class="stat-label">Most Common Source</div>
+        <div class="stat-value" style="font-size:20px" id="ls-top-source">—</div>
+        <div class="stat-sub" id="ls-top-count">—</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Best Converting Source</div>
+        <div class="stat-value" style="font-size:20px" id="ls-best-source">—</div>
+        <div class="stat-sub" id="ls-best-rate">—</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Highest Revenue Source</div>
+        <div class="stat-value" style="font-size:20px" id="ls-revenue-source">—</div>
+        <div class="stat-sub" id="ls-revenue-amt">—</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">Tagged Quotes</div>
+        <div class="stat-value" id="ls-tagged">—</div>
+        <div class="stat-sub" id="ls-tagged-sub">of total quotes</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- Bar chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Lead Source Breakdown</div>
+          <div class="panel-sub">by number of quotes</div>
+        </div>
+        <div id="lead-source-chart"></div>
+      </div>
+
+      <!-- Revenue by source -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Revenue by Source</div>
+          <div class="panel-sub">from won quotes</div>
+        </div>
+        <div id="lead-source-revenue"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── TAB: ALL QUOTES ───────────────────────────────────────────────── -->
   <div class="tab-content" id="tab-quotes">
     <div class="filters">
@@ -964,6 +1121,7 @@
 <script>
 let statsData = null;
 let repsData = [];
+let leadSourceOptions = [];
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 
@@ -1032,6 +1190,20 @@ function renderStats(data) {
   const s = data.summary;
   const d = data.daily || {};
 
+  // Lead source options
+  if (data.leadSourceOptions) leadSourceOptions = data.leadSourceOptions;
+
+  // Monthly goal
+  if (data.goal) {
+    const g = data.goal;
+    document.getElementById('goal-fill').style.width = g.percent.toFixed(1) + '%';
+    document.getElementById('goal-pct').textContent = g.percent.toFixed(1) + '%';
+    document.getElementById('goal-amount').textContent = fmt(g.thisMonthRevenue) + ' of $50,000';
+  }
+
+  // Lead sources
+  renderLeadSources(data.leadSourceStats || {});
+
   // Daily bar
   document.getElementById('today-sent').textContent = d.sent ?? '0';
   document.getElementById('today-won').textContent = d.won ?? '0';
@@ -1083,6 +1255,13 @@ function renderStats(data) {
 
 // ── Quotes Tables ─────────────────────────────────────────────────────────────
 
+function leadSourceSelect(quoteId, current) {
+  return `<select class="rep-select" onchange="assignLeadSource('${quoteId}', this.value)">
+    <option value="">— Source —</option>
+    ${leadSourceOptions.map(s => `<option value="${s}" ${current === s ? 'selected' : ''}>${s}</option>`).join('')}
+  </select>`;
+}
+
 function renderQuotesTable(quotes) {
   const tbody = document.getElementById('quotes-body');
   tbody.innerHTML = quotes.map(q => `
@@ -1098,6 +1277,7 @@ function renderQuotesTable(quotes) {
           ${repsData.map(r => `<option value="${r.id}" ${q.repId === r.id ? 'selected' : ''}>${r.name}</option>`).join('')}
         </select>
       </td>
+      <td>${leadSourceSelect(q.id, q.leadSource)}</td>
     </tr>
   `).join('');
   document.getElementById('quotes-loading').style.display = 'none';
@@ -1270,6 +1450,61 @@ async function deleteRep(id) {
   if (!confirm('Remove this rep?')) return;
   await fetch('/api/reps/' + id, { method: 'DELETE' });
   await loadReps();
+  await loadStats();
+}
+
+function renderLeadSources(stats) {
+  // Filter out Untagged and zero-count sources
+  const entries = Object.entries(stats).filter(([k, v]) => k !== 'Untagged' && v.count > 0);
+  const untagged = stats['Untagged'] || { count: 0, won: 0, revenue: 0 };
+  const totalTagged = entries.reduce((s, [, v]) => s + v.count, 0);
+  const total = totalTagged + untagged.count;
+
+  // Summary cards
+  const sorted = [...entries].sort((a, b) => b[1].count - a[1].count);
+  const byWinRate = [...entries].filter(([, v]) => v.count >= 2).sort((a, b) => (b[1].won / b[1].count) - (a[1].won / a[1].count));
+  const byRevenue = [...entries].sort((a, b) => b[1].revenue - a[1].revenue);
+
+  document.getElementById('ls-top-source').textContent = sorted[0]?.[0] || '—';
+  document.getElementById('ls-top-count').textContent = sorted[0] ? sorted[0][1].count + ' quotes' : '—';
+  document.getElementById('ls-best-source').textContent = byWinRate[0]?.[0] || '—';
+  document.getElementById('ls-best-rate').textContent = byWinRate[0] ? Math.round((byWinRate[0][1].won / byWinRate[0][1].count) * 100) + '% win rate' : '—';
+  document.getElementById('ls-revenue-source').textContent = byRevenue[0]?.[0] || '—';
+  document.getElementById('ls-revenue-amt').textContent = byRevenue[0] ? fmt(byRevenue[0][1].revenue) : '—';
+  document.getElementById('ls-tagged').textContent = totalTagged;
+  document.getElementById('ls-tagged-sub').textContent = 'of ' + total + ' total quotes';
+
+  // Count chart
+  const maxCount = Math.max(...entries.map(([, v]) => v.count), 1);
+  document.getElementById('lead-source-chart').innerHTML = sorted.map(([name, v]) => `
+    <div class="lead-bar-row">
+      <div class="lead-name">${name}</div>
+      <div class="lead-track"><div class="lead-fill" style="width:${(v.count / maxCount * 100).toFixed(1)}%"></div></div>
+      <div class="lead-count">${v.count}</div>
+      <div class="lead-pct">${total > 0 ? Math.round(v.count / total * 100) : 0}%</div>
+    </div>
+  `).join('') + (untagged.count > 0 ? `
+    <div class="lead-bar-row" style="opacity:0.5">
+      <div class="lead-name">Untagged</div>
+      <div class="lead-track"><div class="lead-fill" style="width:${(untagged.count / maxCount * 100).toFixed(1)}%;background:var(--muted)"></div></div>
+      <div class="lead-count">${untagged.count}</div>
+      <div class="lead-pct">${total > 0 ? Math.round(untagged.count / total * 100) : 0}%</div>
+    </div>` : '');
+
+  // Revenue chart
+  const maxRev = Math.max(...entries.map(([, v]) => v.revenue), 1);
+  const byRevSorted = [...entries].sort((a, b) => b[1].revenue - a[1].revenue);
+  document.getElementById('lead-source-revenue').innerHTML = byRevSorted.map(([name, v]) => `
+    <div class="lead-bar-row">
+      <div class="lead-name">${name}</div>
+      <div class="lead-track"><div class="lead-fill" style="width:${(v.revenue / maxRev * 100).toFixed(1)}%;background:var(--green)"></div></div>
+      <div class="lead-count" style="width:80px;color:var(--green)">${fmt(v.revenue)}</div>
+    </div>
+  `).join('') || '<div class="empty"><div class="empty-sub">Tag quotes with lead sources to see revenue breakdown</div></div>';
+}
+
+async function assignLeadSource(quoteId, source) {
+  await fetch('/api/lead-sources', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quoteId, source }) });
   await loadStats();
 }
 
