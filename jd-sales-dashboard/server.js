@@ -152,7 +152,7 @@ const QUOTES_QUERY = `
         quoteStatus
         title
         amounts { subtotal total taxAmount }
-        client { name }
+        client { name leadSource }
         createdAt
         transitionedAt
       }
@@ -253,7 +253,9 @@ app.get('/api/stats', async (req, res) => {
       ...q,
       repId: assignments[q.id] || null,
       repName: assignments[q.id] ? (repMap[assignments[q.id]] || null) : null,
-      leadSource: leadSourceMap[q.id] || null,
+      // Manual tag (set from the dashboard) wins if present; otherwise fall back
+      // to the "Lead source" field pulled straight from the client's Jobber record.
+      leadSource: leadSourceMap[q.id] || q.client?.leadSource || null,
     }));
 
     // Filters
