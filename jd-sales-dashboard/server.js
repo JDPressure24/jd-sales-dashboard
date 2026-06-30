@@ -3,6 +3,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const app = express();
@@ -11,49 +12,57 @@ const PORT = process.env.PORT || 3000;
 const JOBBER_CLIENT_ID = process.env.JOBBER_CLIENT_ID;
 const JOBBER_CLIENT_SECRET = process.env.JOBBER_CLIENT_SECRET;
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
+const COOKIE_SECRET = process.env.COOKIE_SECRET || 'jd-pressure-washing-secret-key-2024';
 const CALLBACK_URL = `${APP_URL}/auth/callback`;
-const TOKEN_FILE = path.join(__dirname, '.token.json');
 const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
 const JOBBER_API_VERSION = '2025-04-16';
 
 app.use(express.static('public'));
 app.use(express.json());
+app.use(cookieParser(COOKIE_SECRET));
 
 let pendingStates = {};
 
-// ── Token helpers ──────────────────────────────────────────────────────────────
+// ── Token helpers (cookie-based — survives redeploys) ─────────────────────────
 
-function readToken() {
+function readToken(req) {
   try {
-    if (fs.existsSync(TOKEN_FILE)) return JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
+    const raw = req.signedCookies?.jd_token || req.cookies?.jd_token;
+    if (raw) return JSON.parse(raw);
   } catch (_) {}
   return null;
 }
 
-function writeToken(data) {
-  fs.writeFileSync(TOKEN_FILE, JSON.stringify({ ...data, obtained_at: Date.now() }));
+function writeToken(res, data) {
+  const payload = JSON.stringify({ ...data, obtained_at: Date.now() });
+  res.cookie('jd_token', payload, {
+    signed: true,
+    httpOnly: true,
+    secure: APP_URL.startsWith('https'),
+    maxAge: 365 * 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
+  });
 }
 
-async function getAccessToken() {
-  let token = readToken();
+async function getAccessToken(req, res) {
+  let token = readToken(req);
   if (!token) return null;
 
   const age = Date.now() - token.obtained_at;
   if (age > 55 * 60 * 1000) {
-    // Refresh
     try {
-      const res = await axios.post('https://api.getjobber.com/api/oauth/token', {
+      const r = await axios.post('https://api.getjobber.com/api/oauth/token', {
         client_id: JOBBER_CLIENT_ID,
         client_secret: JOBBER_CLIENT_SECRET,
         refresh_token: token.refresh_token,
         grant_type: 'refresh_token',
       });
-      writeToken(res.data);
-      return res.data.access_token;
+      if (res) writeToken(res, r.data);
+      return r.data.access_token;
     } catch (err) {
       console.error('Token refresh failed:', err.response?.data || err.message);
-      if (fs.existsSync(TOKEN_FILE)) fs.unlinkSync(TOKEN_FILE);
+      if (res) res.clearCookie('jd_token');
       return null;
     }
   }
@@ -89,7 +98,7 @@ app.get('/auth/callback', async (req, res) => {
       grant_type: 'authorization_code',
       redirect_uri: CALLBACK_URL,
     });
-    writeToken(response.data);
+    writeToken(res, response.data);
     res.redirect('/');
   } catch (err) {
     console.error('OAuth callback error:', err.response?.data || err.message);
@@ -98,7 +107,7 @@ app.get('/auth/callback', async (req, res) => {
 });
 
 app.get('/auth/logout', (req, res) => {
-  if (fs.existsSync(TOKEN_FILE)) fs.unlinkSync(TOKEN_FILE);
+  res.clearCookie('jd_token');
   res.redirect('/');
 });
 
@@ -150,13 +159,11 @@ const QUOTES_QUERY = `
 async function fetchAllQuotes(token) {
   let all = [];
   let cursor = null;
-
   do {
     const data = await jobberQuery(token, QUOTES_QUERY, { cursor });
     all = all.concat(data.quotes.nodes);
     cursor = data.quotes.pageInfo.hasNextPage ? data.quotes.pageInfo.endCursor : null;
   } while (cursor);
-
   return all;
 }
 
@@ -177,12 +184,12 @@ function writeAssignments(data) { fs.writeFileSync(ASSIGNMENTS_FILE, JSON.string
 // ── API routes ─────────────────────────────────────────────────────────────────
 
 app.get('/api/status', async (req, res) => {
-  const token = await getAccessToken();
+  const token = await getAccessToken(req, res);
   res.json({ connected: !!token });
 });
 
 app.get('/api/test', async (req, res) => {
-  const token = await getAccessToken();
+  const token = await getAccessToken(req, res);
   if (!token) return res.json({ error: 'No token' });
   try {
     const result = await axios.post(
@@ -203,7 +210,7 @@ app.get('/api/test', async (req, res) => {
 });
 
 app.get('/api/stats', async (req, res) => {
-  const token = await getAccessToken();
+  const token = await getAccessToken(req, res);
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
 
   try {
@@ -212,14 +219,12 @@ app.get('/api/stats', async (req, res) => {
     const reps = readReps();
     const repMap = Object.fromEntries(reps.map((r) => [r.id, r.name]));
 
-    // Attach rep to each quote
     const enriched = quotes.map((q) => ({
       ...q,
       repId: assignments[q.id] || null,
       repName: assignments[q.id] ? (repMap[assignments[q.id]] || null) : null,
     }));
 
-    // Filter by date range / rep
     let filtered = enriched;
     const { from, to, repId } = req.query;
     if (from) filtered = filtered.filter((q) => new Date(q.createdAt) >= new Date(from));
@@ -236,7 +241,6 @@ app.get('/api/stats', async (req, res) => {
     const avgTicket = won.length > 0 ? totalRevenue / won.length : 0;
     const winRate = sent.length > 0 ? (won.length / sent.length) * 100 : 0;
 
-    // Per-rep breakdown
     const repStats = {};
     for (const rep of reps) {
       const repQuotes = enriched.filter((q) => q.repId === rep.id);
@@ -253,7 +257,6 @@ app.get('/api/stats', async (req, res) => {
       };
     }
 
-    // Build recent quote list
     const recentQuotes = [...filtered]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 50)
@@ -290,7 +293,6 @@ app.get('/api/stats', async (req, res) => {
   }
 });
 
-// Sales reps CRUD
 app.get('/api/reps', (req, res) => res.json(readReps()));
 
 app.post('/api/reps', (req, res) => {
@@ -306,7 +308,6 @@ app.post('/api/reps', (req, res) => {
 app.delete('/api/reps/:id', (req, res) => {
   const reps = readReps().filter((r) => r.id !== req.params.id);
   writeReps(reps);
-  // Also remove assignments for this rep
   const assignments = readAssignments();
   for (const key of Object.keys(assignments)) {
     if (assignments[key] === req.params.id) delete assignments[key];
@@ -315,7 +316,6 @@ app.delete('/api/reps/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-// Quote → rep assignment
 app.post('/api/assignments', (req, res) => {
   const { quoteId, repId } = req.body;
   if (!quoteId) return res.status(400).json({ error: 'quoteId required' });
