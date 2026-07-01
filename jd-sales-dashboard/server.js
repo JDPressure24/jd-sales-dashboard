@@ -205,6 +205,40 @@ async function fetchAllInvoices(token) {
   return all;
 }
 
+// Extended invoice query that also pulls payment records, so "revenue
+// generated today" can reflect actual cash collected today rather than just
+// invoice status. Kept as a separate query/function from fetchAllInvoices so
+// that if the connected Jobber app doesn't have permission to read payment
+// records, only this extra lookup fails — the base invoice fetch used
+// elsewhere keeps working untouched.
+const INVOICES_WITH_PAYMENTS_QUERY = `
+  query GetInvoicesWithPayments($cursor: String) {
+    invoices(first: 100, after: $cursor) {
+      nodes {
+        id
+        invoiceStatus
+        amounts { total }
+        issuedDate
+        createdAt
+        paymentRecords(first: 20) {
+          nodes { paidAt amount }
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+async function fetchAllInvoicesWithPayments(token) {
+  let all = [], cursor = null;
+  do {
+    const data = await jobberQuery(token, INVOICES_WITH_PAYMENTS_QUERY, { cursor });
+    all = all.concat(data.invoices.nodes);
+    cursor = data.invoices.pageInfo.hasNextPage ? data.invoices.pageInfo.endCursor : null;
+  } while (cursor);
+  return all;
+}
+
 // ── Jobs ──────────────────────────────────────────────────────────────────────
 // Used for the monthly goal (completed jobs, not just approved quotes), and for
 // recurring-service tracking below.
@@ -353,10 +387,17 @@ app.get('/api/stats', async (req, res) => {
     // Daily metrics (always from full dataset, no date filter applied) —
     // "today" is evaluated in the business's local timezone, not server UTC.
     const todayQuotes = enriched.filter((q) => isToday(q.createdAt));
-    const todayWon = todayQuotes.filter((q) => ['approved', 'converted'].includes(q.quoteStatus));
     const todaySent = todayQuotes.filter((q) => q.quoteStatus !== 'draft');
-    const todayRevenue = todayWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
     const todayPending = todayQuotes.filter((q) => q.quoteStatus === 'awaiting_response');
+
+    // "Won today" is based on when the quote's status actually flipped to
+    // approved/converted (transitionedAt), not when it was created. A quote
+    // created last week that gets approved today should count toward today's
+    // revenue; a quote created today but approved next week should not.
+    const todayWon = enriched.filter(
+      (q) => ['approved', 'converted'].includes(q.quoteStatus) && q.transitionedAt && isToday(q.transitionedAt)
+    );
+    const todayRevenue = todayWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
 
     // Monthly breakdown (last 6 months, anchored to local "now") — based on quotes,
     // used for the Revenue tab's won-quotes chart.
@@ -398,6 +439,12 @@ app.get('/api/stats', async (req, res) => {
         jobsMonthly[key].revenue += j.total || 0;
       }
     }
+
+    // Jobs completed *today* — closer to "cash-generating work actually
+    // finished today" than quote activity is, since a quote can be won weeks
+    // before the crew shows up and does the job.
+    const jobsCompletedToday = jobsAvailable ? completedJobs.filter((j) => isToday(j.completedAt)) : [];
+    const jobsCompletedTodayRevenue = jobsCompletedToday.reduce((s, j) => s + (j.total || 0), 0);
 
     // Per-rep stats
     const repStats = {};
@@ -454,6 +501,42 @@ app.get('/api/stats', async (req, res) => {
       ? (jobsMonthly[thisMonthKey] || {}).revenue || 0
       : (monthly[thisMonthKey] || {}).revenue || 0;
 
+    // Invoices paid today — closest thing to "money actually in the bank" out
+    // of the three revenue signals. Tries real payment timestamps first; if
+    // the connected Jobber app can't read payment records, falls back to
+    // "invoice marked paid + issued today" as a best-effort estimate rather
+    // than breaking this section entirely.
+    let invoicesPaidToday = { amount: 0, count: 0, basis: 'unavailable' };
+    try {
+      const invoicesWithPayments = await fetchAllInvoicesWithPayments(token);
+      let amount = 0, count = 0;
+      for (const inv of invoicesWithPayments) {
+        const records = inv.paymentRecords?.nodes || [];
+        for (const p of records) {
+          if (p.paidAt && isToday(p.paidAt)) {
+            amount += p.amount || 0;
+            count++;
+          }
+        }
+      }
+      invoicesPaidToday = { amount, count, basis: 'payment_records' };
+    } catch (payErr) {
+      console.error('Payment-records query unavailable, falling back to issued-date estimate:', payErr.message);
+      try {
+        const invoicesFallback = await fetchAllInvoices(token);
+        const paidToday = invoicesFallback.filter(
+          (i) => i.invoiceStatus === 'paid' && isToday(i.issuedDate || i.createdAt)
+        );
+        invoicesPaidToday = {
+          amount: paidToday.reduce((s, i) => s + (i.amounts?.total || 0), 0),
+          count: paidToday.length,
+          basis: 'issued_date_estimate',
+        };
+      } catch (invErr) {
+        console.error('Invoice fallback fetch also failed:', invErr.message);
+      }
+    }
+
     res.json({
       summary: {
         totalQuotes: filtered.length,
@@ -471,6 +554,11 @@ app.get('/api/stats', async (req, res) => {
         won: todayWon.length,
         revenue: todayRevenue,
         pending: todayPending.length,
+        revenueBreakdown: {
+          quotesWon: { amount: todayRevenue, count: todayWon.length },
+          jobsCompleted: { amount: jobsCompletedTodayRevenue, count: jobsCompletedToday.length, available: jobsAvailable },
+          invoicesPaid: invoicesPaidToday,
+        },
       },
       monthly,
       jobsMonthly,
