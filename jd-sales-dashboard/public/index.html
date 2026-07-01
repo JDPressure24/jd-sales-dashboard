@@ -170,6 +170,24 @@
       margin-top: 1px;
     }
 
+    /* ── Today's Generated Revenue breakdown ── */
+    .today-revenue-section {
+      padding: 18px 24px 6px;
+      background: var(--bg);
+    }
+    .today-revenue-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .stat-card .stat-sub.estimate::after {
+      content: ' (est.)';
+      opacity: 0.7;
+    }
+
     /* ── Tabs ── */
     .tabs-bar {
       background: var(--surface);
@@ -768,17 +786,34 @@
     <div class="daily-item">
       <div class="daily-label">Today's Won</div>
       <div class="daily-value" id="today-won">—</div>
-      <div class="daily-sub">jobs approved</div>
-    </div>
-    <div class="daily-item">
-      <div class="daily-label">Today's Revenue</div>
-      <div class="daily-value" id="today-revenue">—</div>
-      <div class="daily-sub">from won quotes</div>
+      <div class="daily-sub">quotes approved</div>
     </div>
     <div class="daily-item">
       <div class="daily-label">Pending</div>
       <div class="daily-value" id="today-pending">—</div>
       <div class="daily-sub">awaiting response</div>
+    </div>
+  </div>
+
+  <!-- Today's Generated Revenue (three views of "today's revenue" side by side) -->
+  <div class="today-revenue-section">
+    <div class="today-revenue-label">💰 Today's Generated Revenue</div>
+    <div class="stat-grid" style="margin-bottom: 0;">
+      <div class="stat-card green">
+        <div class="stat-label">Quotes Won Today</div>
+        <div class="stat-value" id="rev-quotes-won">—</div>
+        <div class="stat-sub" id="rev-quotes-won-sub">quotes approved today</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Jobs Completed Today</div>
+        <div class="stat-value" id="rev-jobs-completed">—</div>
+        <div class="stat-sub" id="rev-jobs-completed-sub">work finished on-site</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Invoices Paid Today</div>
+        <div class="stat-value" id="rev-invoices-paid">—</div>
+        <div class="stat-sub" id="rev-invoices-paid-sub">cash collected today</div>
+      </div>
     </div>
   </div>
 
@@ -1207,8 +1242,33 @@ function renderStats(data) {
   // Daily bar
   document.getElementById('today-sent').textContent = d.sent ?? '0';
   document.getElementById('today-won').textContent = d.won ?? '0';
-  document.getElementById('today-revenue').textContent = fmt(d.revenue || 0);
   document.getElementById('today-pending').textContent = d.pending ?? '0';
+
+  // Today's Generated Revenue — three views side by side
+  const rb = d.revenueBreakdown || {};
+  const qw = rb.quotesWon || { amount: 0, count: 0 };
+  const jc = rb.jobsCompleted || { amount: 0, count: 0, available: true };
+  const ip = rb.invoicesPaid || { amount: 0, count: 0, basis: 'unavailable' };
+
+  document.getElementById('rev-quotes-won').textContent = fmt(qw.amount || 0);
+  document.getElementById('rev-quotes-won-sub').textContent =
+    (qw.count || 0) + (qw.count === 1 ? ' quote approved today' : ' quotes approved today');
+
+  const jobsEl = document.getElementById('rev-jobs-completed');
+  const jobsSubEl = document.getElementById('rev-jobs-completed-sub');
+  if (jc.available === false) {
+    jobsEl.textContent = 'N/A';
+    jobsSubEl.textContent = 'Jobs access not connected';
+  } else {
+    jobsEl.textContent = fmt(jc.amount || 0);
+    jobsSubEl.textContent = (jc.count || 0) + (jc.count === 1 ? ' job completed today' : ' jobs completed today');
+  }
+
+  const invEl = document.getElementById('rev-invoices-paid');
+  const invSubEl = document.getElementById('rev-invoices-paid-sub');
+  invEl.textContent = fmt(ip.amount || 0);
+  invSubEl.textContent = (ip.count || 0) + (ip.count === 1 ? ' invoice paid today' : ' invoices paid today');
+  invSubEl.classList.toggle('estimate', ip.basis === 'issued_date_estimate');
 
   // Stat cards
   document.getElementById('avg-ticket').textContent = fmt(s.avgTicket);
