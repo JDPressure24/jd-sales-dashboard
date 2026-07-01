@@ -18,6 +18,7 @@ const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
 const LEAD_SOURCES_FILE = path.join(__dirname, '.lead-sources.json');
 const MONTHLY_GOAL = 50000;
+const BUSINESS_TIMEZONE = 'America/New_York';
 
 const LEAD_SOURCE_OPTIONS = [
   'Referral',
@@ -221,14 +222,33 @@ function readLeadSources() {
 }
 function writeLeadSources(data) { fs.writeFileSync(LEAD_SOURCES_FILE, JSON.stringify(data)); }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Timezone-aware date helpers ─────────────────────────────────────────────────
+// Railway (and most hosts) run servers on UTC. Without this, "today" and "this
+// month" get computed against UTC, which silently rolls over hours before the
+// business's actual local day/month ends. Everything below anchors to
+// BUSINESS_TIMEZONE instead of the server's local clock.
+
+const nyPartsFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+function localParts(date) {
+  const parts = Object.fromEntries(nyPartsFormatter.formatToParts(date).map((p) => [p.type, p.value]));
+  return { year: parts.year, month: parts.month, day: parts.day };
+}
+
+function localMonthKey(date) {
+  const p = localParts(date);
+  return `${p.year}-${p.month}`;
+}
 
 function isToday(dateStr) {
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() &&
-         d.getMonth() === now.getMonth() &&
-         d.getDate() === now.getDate();
+  const a = localParts(new Date(dateStr));
+  const b = localParts(new Date());
+  return a.year === b.year && a.month === b.month && a.day === b.day;
 }
 
 // ── API routes ─────────────────────────────────────────────────────────────────
@@ -275,24 +295,26 @@ app.get('/api/stats', async (req, res) => {
     const avgTicket = won.length > 0 ? totalRevenue / won.length : 0;
     const winRate = sent.length > 0 ? (won.length / sent.length) * 100 : 0;
 
-    // Daily metrics (always from full dataset, no date filter applied)
+    // Daily metrics (always from full dataset, no date filter applied) —
+    // "today" is evaluated in the business's local timezone, not server UTC.
     const todayQuotes = enriched.filter((q) => isToday(q.createdAt));
     const todayWon = todayQuotes.filter((q) => ['approved', 'converted'].includes(q.quoteStatus));
     const todaySent = todayQuotes.filter((q) => q.quoteStatus !== 'draft');
     const todayRevenue = todayWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
     const todayPending = todayQuotes.filter((q) => q.quoteStatus === 'awaiting_response');
 
-    // Monthly breakdown (last 6 months)
+    // Monthly breakdown (last 6 months, anchored to local "now")
+    const nowP = localParts(new Date());
+    const refDate = new Date(Date.UTC(Number(nowP.year), Number(nowP.month) - 1, 15));
     const monthly = {};
     for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const d = new Date(refDate);
+      d.setUTCMonth(d.getUTCMonth() - i);
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
       monthly[key] = { sent: 0, won: 0, revenue: 0 };
     }
     for (const q of enriched) {
-      const d = new Date(q.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const key = localMonthKey(new Date(q.createdAt));
       if (monthly[key]) {
         if (q.quoteStatus !== 'draft') monthly[key].sent++;
         if (['approved', 'converted'].includes(q.quoteStatus)) {
@@ -349,9 +371,8 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
-    // Current month revenue for goal tracking
-    const now = new Date();
-    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // Current month revenue for goal tracking (local timezone month)
+    const thisMonthKey = localMonthKey(new Date());
     const thisMonthRevenue = (monthly[thisMonthKey] || {}).revenue || 0;
 
     res.json({
@@ -406,17 +427,18 @@ app.get('/api/invoice-stats', async (req, res) => {
     const outstandingRevenue = outstanding.reduce((s, i) => s + (i.amounts?.total || 0), 0);
     const avgInvoice = paid.length > 0 ? paidRevenue / paid.length : 0;
 
-    // Monthly invoice revenue (last 6 months)
+    // Monthly invoice revenue (last 6 months, anchored to local "now")
+    const nowP = localParts(new Date());
+    const refDate = new Date(Date.UTC(Number(nowP.year), Number(nowP.month) - 1, 15));
     const monthly = {};
     for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const d = new Date(refDate);
+      d.setUTCMonth(d.getUTCMonth() - i);
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
       monthly[key] = { paid: 0, revenue: 0 };
     }
     for (const inv of paid) {
-      const d = new Date(inv.createdAt);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const key = localMonthKey(new Date(inv.createdAt));
       if (monthly[key]) {
         monthly[key].paid++;
         monthly[key].revenue += inv.amounts?.total || 0;
