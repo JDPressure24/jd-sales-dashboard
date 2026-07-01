@@ -797,7 +797,7 @@
     <button class="tab-btn active" onclick="switchTab('overview', this)">Overview</button>
     <button class="tab-btn" onclick="switchTab('revenue', this)">Revenue</button>
     <button class="tab-btn" onclick="switchTab('leads', this)">Lead Sources</button>
-    <button class="tab-btn" onclick="switchTab('quotes', this)">All Quotes</button>
+    <button class="tab-btn" onclick="switchTab('quotes', this)">All Quotes</button><button class="tab-btn" onclick="switchTab('recurring', this)">Recurring</button>
   </div>
 
   <!-- ── TAB: OVERVIEW ─────────────────────────────────────────────────── -->
@@ -1116,7 +1116,7 @@
     </div>
   </div>
 
-</div><!-- /#app -->
+<div class="tab-content" id="tab-recurring"><div class="panel"><div class="panel-header"><div class="panel-title">Recurring Service Reminders</div><div class="panel-sub" id="recurring-summary">—</div></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Last Service</th><th>Days Since</th><th>Interval (days)</th><th>Status</th><th>Next Due</th></tr></thead><tbody id="recurring-body"></tbody></table></div></div></div></div><!-- /#app -->
 
 <script>
 let statsData = null;
@@ -1125,7 +1125,7 @@ let leadSourceOptions = [];
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 
-async function init() {
+async function loadRecurring(){try{const r=await fetch('/api/recurring');const data=await r.json();const body=document.getElementById('recurring-body');const summary=document.getElementById('recurring-summary');if(!data.jobsAvailable){body.innerHTML='<tr><td colspan="6" style="padding:16px;color:var(--muted)">Recurring tracking needs Jobs access from Jobber — reconnect once Jobs permission is enabled.</td></tr>';summary.textContent='Jobs data unavailable';return;}summary.textContent=data.counts.overdue+' overdue · '+data.counts.dueSoon+' due soon · '+data.counts.ok+' on track';body.innerHTML=data.clients.map(function(c){const badgeClass=c.status==='overdue'?'badge-lost':(c.status==='due_soon'?'badge-pending':'badge-won');const statusLabel=c.status==='overdue'?'Overdue':(c.status==='due_soon'?'Due Soon':'On Track');const nextDueText=c.daysUntilDue<0?(Math.abs(c.daysUntilDue)+' days overdue'):(c.daysUntilDue+' days');const lastDate=new Date(c.lastServiceDate).toLocaleDateString();return '<tr><td>'+c.client+'</td><td>'+lastDate+'</td><td>'+c.daysSince+'</td><td><input type="number" value="'+c.intervalDays+'" style="width:60px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px" onchange="saveRecurringInterval('+JSON.stringify(c.client)+', this.value)" /></td><td><span class="badge '+badgeClass+'">'+statusLabel+'</span></td><td>'+nextDueText+'</td></tr>';}).join('');}catch(e){console.error('loadRecurring failed',e);}} async function saveRecurringInterval(client,intervalDays){await fetch('/api/recurring-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client,intervalDays})});await loadRecurring();} async function init() {
   const r = await fetch('/api/status');
   const { connected } = await r.json();
   if (!connected) {
@@ -1137,7 +1137,7 @@ async function init() {
 }
 
 async function loadAll() {
-  await Promise.all([loadReps(), loadStats()]);
+  await Promise.all([loadReps(), loadStats(), loadRecurring()]);
   loadInvoiceStats();
 }
 
