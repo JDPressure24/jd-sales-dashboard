@@ -295,7 +295,21 @@ app.get('/api/stats', async (req, res) => {
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
 
   try {
-    const [quotes, jobs] = await Promise.all([fetchAllQuotes(token), fetchAllJobs(token)]);
+    const quotes = await fetchAllQuotes(token);
+
+    // Jobs power the "completed jobs" monthly goal. If the connected Jobber
+    // app doesn't have permission to read Job records, don't let that take
+    // down the whole dashboard — fall back to the previous won-quotes basis
+    // for the goal and keep everything else working.
+    let jobs = [];
+    let jobsAvailable = true;
+    try {
+      jobs = await fetchAllJobs(token);
+    } catch (jobsErr) {
+      jobsAvailable = false;
+      console.error('Jobs fetch failed — goal will fall back to won-quotes revenue:', jobsErr.message);
+    }
+
     const assignments = readAssignments();
     const leadSourceMap = readLeadSources();
     const reps = readReps();
@@ -357,9 +371,9 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
-    // Completed-jobs monthly revenue — this is what the Monthly Goal tracks.
-    // A job only counts once it actually has a completedAt date (i.e. the work
-    // was finished on site), not merely once its quote was approved.
+    // Completed-jobs monthly revenue — this is what the Monthly Goal tracks,
+    // when the Jobs API is available. A job only counts once it has a real
+    // completedAt date (work actually finished on site).
     const completedJobs = jobs.filter((j) => !!j.completedAt);
     const jobsMonthly = {};
     for (let i = 5; i >= 0; i--) {
@@ -423,9 +437,13 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
-    // Current month revenue for goal tracking — completed jobs only, local timezone month.
+    // Current month revenue for goal tracking. Prefer completed-jobs revenue;
+    // if the Jobs API isn't accessible, fall back to won-quotes revenue so the
+    // goal bar still shows something useful instead of breaking.
     const thisMonthKey = localMonthKey(new Date());
-    const thisMonthRevenue = (jobsMonthly[thisMonthKey] || {}).revenue || 0;
+    const thisMonthRevenue = jobsAvailable
+      ? (jobsMonthly[thisMonthKey] || {}).revenue || 0
+      : (monthly[thisMonthKey] || {}).revenue || 0;
 
     res.json({
       summary: {
@@ -454,7 +472,7 @@ app.get('/api/stats', async (req, res) => {
         monthly: MONTHLY_GOAL,
         thisMonthRevenue,
         percent: Math.min((thisMonthRevenue / MONTHLY_GOAL) * 100, 100),
-        basis: 'completed_jobs',
+        basis: jobsAvailable ? 'completed_jobs' : 'won_quotes_fallback',
       },
       leadSourceOptions: LEAD_SOURCE_OPTIONS,
     });
