@@ -202,6 +202,38 @@ async function fetchAllInvoices(token) {
   return all;
 }
 
+// ── Jobs ──────────────────────────────────────────────────────────────────────
+// Used specifically for the monthly goal, which should reflect actual completed
+// work (jobs with a completion date), not just quotes that were approved/won.
+
+const JOBS_QUERY = `
+  query GetJobs($cursor: String) {
+    jobs(first: 100, after: $cursor) {
+      nodes {
+        id
+        jobNumber
+        title
+        jobStatus
+        total
+        completedAt
+        client { name }
+        createdAt
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+async function fetchAllJobs(token) {
+  let all = [], cursor = null;
+  do {
+    const data = await jobberQuery(token, JOBS_QUERY, { cursor });
+    all = all.concat(data.jobs.nodes);
+    cursor = data.jobs.pageInfo.hasNextPage ? data.jobs.pageInfo.endCursor : null;
+  } while (cursor);
+  return all;
+}
+
 // ── Sales rep helpers ──────────────────────────────────────────────────────────
 
 function readReps() {
@@ -263,7 +295,7 @@ app.get('/api/stats', async (req, res) => {
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
 
   try {
-    const quotes = await fetchAllQuotes(token);
+    const [quotes, jobs] = await Promise.all([fetchAllQuotes(token), fetchAllJobs(token)]);
     const assignments = readAssignments();
     const leadSourceMap = readLeadSources();
     const reps = readReps();
@@ -303,7 +335,8 @@ app.get('/api/stats', async (req, res) => {
     const todayRevenue = todayWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
     const todayPending = todayQuotes.filter((q) => q.quoteStatus === 'awaiting_response');
 
-    // Monthly breakdown (last 6 months, anchored to local "now")
+    // Monthly breakdown (last 6 months, anchored to local "now") — based on quotes,
+    // used for the Revenue tab's won-quotes chart.
     const nowP = localParts(new Date());
     const refDate = new Date(Date.UTC(Number(nowP.year), Number(nowP.month) - 1, 15));
     const monthly = {};
@@ -321,6 +354,25 @@ app.get('/api/stats', async (req, res) => {
           monthly[key].won++;
           monthly[key].revenue += q.amounts?.total || 0;
         }
+      }
+    }
+
+    // Completed-jobs monthly revenue — this is what the Monthly Goal tracks.
+    // A job only counts once it actually has a completedAt date (i.e. the work
+    // was finished on site), not merely once its quote was approved.
+    const completedJobs = jobs.filter((j) => !!j.completedAt);
+    const jobsMonthly = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(refDate);
+      d.setUTCMonth(d.getUTCMonth() - i);
+      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      jobsMonthly[key] = { completed: 0, revenue: 0 };
+    }
+    for (const j of completedJobs) {
+      const key = localMonthKey(new Date(j.completedAt));
+      if (jobsMonthly[key]) {
+        jobsMonthly[key].completed++;
+        jobsMonthly[key].revenue += j.total || 0;
       }
     }
 
@@ -371,9 +423,9 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
-    // Current month revenue for goal tracking (local timezone month)
+    // Current month revenue for goal tracking — completed jobs only, local timezone month.
     const thisMonthKey = localMonthKey(new Date());
-    const thisMonthRevenue = (monthly[thisMonthKey] || {}).revenue || 0;
+    const thisMonthRevenue = (jobsMonthly[thisMonthKey] || {}).revenue || 0;
 
     res.json({
       summary: {
@@ -394,6 +446,7 @@ app.get('/api/stats', async (req, res) => {
         pending: todayPending.length,
       },
       monthly,
+      jobsMonthly,
       repStats,
       recentQuotes,
       leadSourceStats,
@@ -401,6 +454,7 @@ app.get('/api/stats', async (req, res) => {
         monthly: MONTHLY_GOAL,
         thisMonthRevenue,
         percent: Math.min((thisMonthRevenue / MONTHLY_GOAL) * 100, 100),
+        basis: 'completed_jobs',
       },
       leadSourceOptions: LEAD_SOURCE_OPTIONS,
     });
