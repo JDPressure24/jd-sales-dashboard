@@ -17,8 +17,11 @@ const CALLBACK_URL = `${APP_URL}/auth/callback`;
 const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
 const LEAD_SOURCES_FILE = path.join(__dirname, '.lead-sources.json');
+const RECURRING_SETTINGS_FILE = path.join(__dirname, '.recurring-settings.json');
 const MONTHLY_GOAL = 50000;
 const BUSINESS_TIMEZONE = 'America/New_York';
+const DEFAULT_RECURRING_INTERVAL_DAYS = 90;
+const DUE_SOON_WINDOW_DAYS = 14;
 
 const LEAD_SOURCE_OPTIONS = [
   'Referral',
@@ -203,8 +206,8 @@ async function fetchAllInvoices(token) {
 }
 
 // ── Jobs ──────────────────────────────────────────────────────────────────────
-// Used specifically for the monthly goal, which should reflect actual completed
-// work (jobs with a completion date), not just quotes that were approved/won.
+// Used for the monthly goal (completed jobs, not just approved quotes), and for
+// recurring-service tracking below.
 
 const JOBS_QUERY = `
   query GetJobs($cursor: String) {
@@ -253,6 +256,12 @@ function readLeadSources() {
   return {};
 }
 function writeLeadSources(data) { fs.writeFileSync(LEAD_SOURCES_FILE, JSON.stringify(data)); }
+
+function readRecurringSettings() {
+  try { if (fs.existsSync(RECURRING_SETTINGS_FILE)) return JSON.parse(fs.readFileSync(RECURRING_SETTINGS_FILE, 'utf8')); } catch (_) {}
+  return {};
+}
+function writeRecurringSettings(data) { fs.writeFileSync(RECURRING_SETTINGS_FILE, JSON.stringify(data)); }
 
 // ── Timezone-aware date helpers ─────────────────────────────────────────────────
 // Railway (and most hosts) run servers on UTC. Without this, "today" and "this
@@ -547,6 +556,91 @@ app.get('/api/invoice-stats', async (req, res) => {
     console.error('Invoice stats error:', err.message);
     res.status(500).json({ error: 'Failed to fetch invoices', detail: err.message });
   }
+});
+
+// ── Recurring service tracking ───────────────────────────────────────────────
+// Flags clients who are due/overdue for their next service, based on how long
+// it's been since their last completed job vs. a configurable per-client
+// interval (defaults to DEFAULT_RECURRING_INTERVAL_DAYS). Depends on the same
+// Jobs data as the completed-jobs goal, so it degrades gracefully the same way
+// if the connected Jobber app doesn't have Jobs read access yet.
+
+app.get('/api/recurring', async (req, res) => {
+  const token = await getAccessToken(req, res);
+  if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
+
+  try {
+    let jobs = [];
+    let jobsAvailable = true;
+    try {
+      jobs = await fetchAllJobs(token);
+    } catch (jobsErr) {
+      jobsAvailable = false;
+      console.error('Recurring: jobs fetch failed:', jobsErr.message);
+    }
+
+    if (!jobsAvailable) {
+      return res.json({ jobsAvailable: false, clients: [], counts: { overdue: 0, dueSoon: 0, ok: 0 } });
+    }
+
+    const settings = readRecurringSettings();
+    const completedJobs = jobs.filter((j) => !!j.completedAt);
+
+    const byClient = {};
+    for (const j of completedJobs) {
+      const name = j.client?.name || 'Unknown';
+      if (!byClient[name]) byClient[name] = [];
+      byClient[name].push(j);
+    }
+
+    const now = Date.now();
+    const clients = Object.keys(byClient).map((name) => {
+      const jobsForClient = byClient[name].sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt));
+      const last = jobsForClient[0];
+      const lastDate = new Date(last.completedAt).getTime();
+      const daysSince = Math.floor((now - lastDate) / 86400000);
+      const intervalDays = settings[name] || DEFAULT_RECURRING_INTERVAL_DAYS;
+      const daysUntilDue = intervalDays - daysSince;
+      let status = 'ok';
+      if (daysUntilDue < 0) status = 'overdue';
+      else if (daysUntilDue <= DUE_SOON_WINDOW_DAYS) status = 'due_soon';
+
+      return {
+        client: name,
+        lastServiceDate: last.completedAt,
+        lastServiceTitle: last.title || '—',
+        lastServiceTotal: last.total || 0,
+        completedCount: jobsForClient.length,
+        intervalDays,
+        daysSince,
+        daysUntilDue,
+        status,
+      };
+    });
+
+    clients.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+
+    const counts = {
+      overdue: clients.filter((c) => c.status === 'overdue').length,
+      dueSoon: clients.filter((c) => c.status === 'due_soon').length,
+      ok: clients.filter((c) => c.status === 'ok').length,
+    };
+
+    res.json({ jobsAvailable: true, clients, counts, defaultIntervalDays: DEFAULT_RECURRING_INTERVAL_DAYS });
+  } catch (err) {
+    console.error('Recurring error:', err.message);
+    res.status(500).json({ error: 'Failed to compute recurring status', detail: err.message });
+  }
+});
+
+app.post('/api/recurring-settings', (req, res) => {
+  const { client, intervalDays } = req.body;
+  if (!client) return res.status(400).json({ error: 'client required' });
+  const settings = readRecurringSettings();
+  if (intervalDays) settings[client] = Number(intervalDays);
+  else delete settings[client];
+  writeRecurringSettings(settings);
+  res.json({ ok: true });
 });
 
 // ── Sales reps CRUD ────────────────────────────────────────────────────────────
