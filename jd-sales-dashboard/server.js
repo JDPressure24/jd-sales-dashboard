@@ -13,6 +13,9 @@ const JOBBER_CLIENT_ID = process.env.JOBBER_CLIENT_ID;
 const JOBBER_CLIENT_SECRET = process.env.JOBBER_CLIENT_SECRET;
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 const COOKIE_SECRET = process.env.COOKIE_SECRET || 'jd-pressure-washing-secret-key-2024';
+const GHL_API_KEY = process.env.GHL_API_KEY;
+const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
+const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
 const CALLBACK_URL = `${APP_URL}/auth/callback`;
 const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
@@ -930,6 +933,52 @@ app.get('/api/marketing-report', async (req, res) => {
     console.error('Marketing report error:', err.message);
     res.status(500).json({ error: 'Failed to build marketing report', detail: err.message });
   }
+});
+
+// ── GoHighLevel connection diagnostic ───────────────────────────────────────
+// This is intentionally a "just tell us what happened" endpoint rather than
+// something that assumes success. GHL's API hasn't been verified against a
+// live account from here, so this surfaces the raw response/error so we can
+// confirm the right base URL, auth header, and version header for your
+// account before building anything real on top of it.
+app.get('/api/ghl/test', async (req, res) => {
+  if (!GHL_API_KEY) {
+    return res.status(400).json({ ok: false, error: 'GHL_API_KEY environment variable is not set on the server yet.' });
+  }
+
+  const attempts = [];
+
+  try {
+    const r = await axios.get(`${GHL_BASE_URL}/contacts/`, {
+      headers: { Authorization: `Bearer ${GHL_API_KEY}`, Version: '2021-07-28' },
+      params: { locationId: GHL_LOCATION_ID, limit: 1 },
+    });
+    attempts.push({ endpoint: 'GET /contacts/', ok: true, status: r.status, sample: r.data });
+  } catch (err) {
+    attempts.push({
+      endpoint: 'GET /contacts/',
+      ok: false,
+      status: err.response?.status || null,
+      error: err.response?.data || err.message,
+    });
+  }
+
+  try {
+    const r = await axios.get(`${GHL_BASE_URL}/opportunities/search`, {
+      headers: { Authorization: `Bearer ${GHL_API_KEY}`, Version: '2021-07-28' },
+      params: { location_id: GHL_LOCATION_ID, limit: 1 },
+    });
+    attempts.push({ endpoint: 'GET /opportunities/search', ok: true, status: r.status, sample: r.data });
+  } catch (err) {
+    attempts.push({
+      endpoint: 'GET /opportunities/search',
+      ok: false,
+      status: err.response?.status || null,
+      error: err.response?.data || err.message,
+    });
+  }
+
+  res.json({ locationIdSet: !!GHL_LOCATION_ID, attempts });
 });
 
 app.listen(PORT, () => {
