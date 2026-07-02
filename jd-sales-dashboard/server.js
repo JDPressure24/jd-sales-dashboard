@@ -133,20 +133,47 @@ app.get('/auth/logout', (req, res) => {
 
 // ── Jobber GraphQL ─────────────────────────────────────────────────────────────
 
-async function jobberQuery(token, query, variables = {}) {
-  const res = await axios.post(
-    'https://api.getjobber.com/api/graphql',
-    { query, variables },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'X-JOBBER-GRAPHQL-VERSION': JOBBER_API_VERSION,
-      },
+async function jobberQuery(token, query, variables = {}, attempt = 1) {
+  try {
+    const res = await axios.post(
+      'https://api.getjobber.com/api/graphql',
+      { query, variables },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-JOBBER-GRAPHQL-VERSION': JOBBER_API_VERSION,
+        },
+      }
+    );
+    if (res.data.errors) throw new Error(res.data.errors.map((e) => e.message).join(', '));
+    return res.data.data;
+  } catch (err) {
+    const message = err.message || '';
+    const isThrottled = /throttl/i.test(message);
+    if (isThrottled && attempt < 4) {
+      const waitMs = 1500 * attempt; // 1.5s, 3s, 4.5s
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return jobberQuery(token, query, variables, attempt + 1);
     }
-  );
-  if (res.data.errors) throw new Error(res.data.errors.map((e) => e.message).join(', '));
-  return res.data.data;
+    throw err;
+  }
+}
+
+// Short-lived shared cache so that a single page load — which fires
+// /api/stats, /api/recurring, and /api/marketing-report at roughly the same
+// time — doesn't independently re-fetch the same quotes/jobs/invoices from
+// Jobber three times over. That redundant simultaneous load is the main
+// thing pushing Jobber's rate limiter into "Throttled" territory.
+const jobberCache = new Map();
+const JOBBER_CACHE_TTL_MS = 45 * 1000;
+
+async function cachedFetch(cacheKey, fetchFn) {
+  const cached = jobberCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.data;
+  const data = await fetchFn();
+  jobberCache.set(cacheKey, { data, expiresAt: Date.now() + JOBBER_CACHE_TTL_MS });
+  return data;
 }
 
 // ── Quotes ────────────────────────────────────────────────────────────────────
@@ -348,7 +375,7 @@ app.get('/api/stats', async (req, res) => {
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
 
   try {
-    const quotes = await fetchAllQuotes(token);
+    const quotes = await cachedFetch(`quotes:${token}`, () => fetchAllQuotes(token));
 
     // Jobs power the "completed jobs" monthly goal. If the connected Jobber
     // app doesn't have permission to read Job records, don't let that take
@@ -357,7 +384,7 @@ app.get('/api/stats', async (req, res) => {
     let jobs = [];
     let jobsAvailable = true;
     try {
-      jobs = await fetchAllJobs(token);
+      jobs = await cachedFetch(`jobs:${token}`, () => fetchAllJobs(token));
     } catch (jobsErr) {
       jobsAvailable = false;
       console.error('Jobs fetch failed — goal will fall back to won-quotes revenue:', jobsErr.message);
@@ -542,7 +569,7 @@ app.get('/api/stats', async (req, res) => {
     // than breaking this section entirely.
     let invoicesPaidToday = { amount: 0, count: 0, basis: 'unavailable' };
     try {
-      const invoicesWithPayments = await fetchAllInvoicesWithPayments(token);
+      const invoicesWithPayments = await cachedFetch(`invoices_payments:${token}`, () => fetchAllInvoicesWithPayments(token));
       let amount = 0, count = 0;
       for (const inv of invoicesWithPayments) {
         const records = inv.paymentRecords?.nodes || [];
@@ -557,7 +584,7 @@ app.get('/api/stats', async (req, res) => {
     } catch (payErr) {
       console.error('Payment-records query unavailable, falling back to issued-date estimate:', payErr.message);
       try {
-        const invoicesFallback = await fetchAllInvoices(token);
+        const invoicesFallback = await cachedFetch(`invoices:${token}`, () => fetchAllInvoices(token));
         const paidToday = invoicesFallback.filter(
           (i) => i.invoiceStatus === 'paid' && isToday(i.issuedDate || i.createdAt)
         );
@@ -632,7 +659,7 @@ app.get('/api/invoice-stats', async (req, res) => {
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
 
   try {
-    const invoices = await fetchAllInvoices(token);
+    const invoices = await cachedFetch(`invoices:${token}`, () => fetchAllInvoices(token));
 
     const paid = invoices.filter((i) => i.invoiceStatus === 'paid');
     const outstanding = invoices.filter((i) => ['sent', 'overdue', 'awaiting_payment'].includes(i.invoiceStatus));
@@ -707,7 +734,7 @@ app.get('/api/recurring', async (req, res) => {
     let jobs = [];
     let jobsAvailable = true;
     try {
-      jobs = await fetchAllJobs(token);
+      jobs = await cachedFetch(`jobs:${token}`, () => fetchAllJobs(token));
     } catch (jobsErr) {
       jobsAvailable = false;
       console.error('Recurring: jobs fetch failed:', jobsErr.message);
@@ -861,7 +888,7 @@ app.get('/api/marketing-report', async (req, res) => {
   if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
 
   try {
-    const quotes = await fetchAllQuotes(token);
+    const quotes = await cachedFetch(`quotes:${token}`, () => fetchAllQuotes(token));
     const leadSourceMap = readLeadSources();
     const spendEntries = readMarketingSpend();
 
