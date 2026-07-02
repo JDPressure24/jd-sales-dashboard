@@ -501,6 +501,30 @@ app.get('/api/stats', async (req, res) => {
       ? (jobsMonthly[thisMonthKey] || {}).revenue || 0
       : (monthly[thisMonthKey] || {}).revenue || 0;
 
+    // Previous month's earnings, same basis as above.
+    const now = new Date();
+    const lastMonthKey = localMonthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const lastMonthRevenue = jobsAvailable
+      ? (jobsMonthly[lastMonthKey] || {}).revenue || 0
+      : (monthly[lastMonthKey] || {}).revenue || 0;
+    const lastMonthCount = jobsAvailable
+      ? (jobsMonthly[lastMonthKey] || {}).completed || 0
+      : (monthly[lastMonthKey] || {}).won || 0;
+
+    // Projected income for the current month = revenue already earned this
+    // month + value of jobs already booked but not yet completed + expected
+    // value of open quotes. Open quotes are weighted by the shop's actual
+    // historical win rate rather than assuming every open quote closes, since
+    // that would overstate the projection.
+    const bookedJobs = jobsAvailable ? jobs.filter((j) => !j.completedAt) : [];
+    const bookedJobsValue = bookedJobs.reduce((s, j) => s + (j.total || 0), 0);
+
+    const openQuotesValue = pending.reduce((s, q) => s + (q.amounts?.total || 0), 0);
+    const winRateFraction = winRate > 0 ? winRate / 100 : 0;
+    const expectedQuotesValue = openQuotesValue * winRateFraction;
+
+    const projectedMonthIncome = thisMonthRevenue + bookedJobsValue + expectedQuotesValue;
+
     // Invoices paid today — closest thing to "money actually in the bank" out
     // of the three revenue signals. Tries real payment timestamps first; if
     // the connected Jobber app can't read payment records, falls back to
@@ -570,6 +594,18 @@ app.get('/api/stats', async (req, res) => {
         thisMonthRevenue,
         percent: Math.min((thisMonthRevenue / MONTHLY_GOAL) * 100, 100),
         basis: jobsAvailable ? 'completed_jobs' : 'won_quotes_fallback',
+      },
+      lastMonth: {
+        key: lastMonthKey,
+        revenue: lastMonthRevenue,
+        count: lastMonthCount,
+        basis: jobsAvailable ? 'completed_jobs' : 'won_quotes_fallback',
+      },
+      projection: {
+        thisMonthEarnedSoFar: thisMonthRevenue,
+        bookedJobs: { value: bookedJobsValue, count: bookedJobs.length, available: jobsAvailable },
+        openQuotes: { value: openQuotesValue, expectedValue: expectedQuotesValue, count: pending.length, winRate },
+        projectedTotal: projectedMonthIncome,
       },
       leadSourceOptions: LEAD_SOURCE_OPTIONS,
     });
