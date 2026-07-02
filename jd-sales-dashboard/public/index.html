@@ -817,6 +817,23 @@
     </div>
   </div>
 
+  <!-- Monthly Outlook: last month's earnings + this month's projected income -->
+  <div class="today-revenue-section">
+    <div class="today-revenue-label">📅 Monthly Outlook</div>
+    <div class="stat-grid" style="margin-bottom: 0;">
+      <div class="stat-card blue">
+        <div class="stat-label">Last Month's Earnings</div>
+        <div class="stat-value" id="rev-last-month">—</div>
+        <div class="stat-sub" id="rev-last-month-sub">completed jobs</div>
+      </div>
+      <div class="stat-card orange">
+        <div class="stat-label">Projected Income This Month</div>
+        <div class="stat-value" id="rev-projected">—</div>
+        <div class="stat-sub" id="rev-projected-sub">earned + booked + expected from quotes</div>
+      </div>
+    </div>
+  </div>
+
   <!-- Monthly Goal Bar -->
   <div class="goal-bar-wrap">
     <div class="goal-label">🎯 Monthly Goal</div>
@@ -1269,6 +1286,21 @@ function renderStats(data) {
   invEl.textContent = fmt(ip.amount || 0);
   invSubEl.textContent = (ip.count || 0) + (ip.count === 1 ? ' invoice paid today' : ' invoices paid today');
   invSubEl.classList.toggle('estimate', ip.basis === 'issued_date_estimate');
+
+  // Monthly outlook: last month's earnings + this month's projected income
+  const lm = data.lastMonth || {};
+  document.getElementById('rev-last-month').textContent = fmt(lm.revenue || 0);
+  document.getElementById('rev-last-month-sub').textContent =
+    (lm.count || 0) + (lm.count === 1 ? ' job completed' : ' jobs completed') +
+    (lm.basis === 'won_quotes_fallback' ? ' (quotes basis)' : '');
+
+  const proj = data.projection || {};
+  const bj = proj.bookedJobs || { value: 0, count: 0 };
+  const oq = proj.openQuotes || { value: 0, expectedValue: 0, count: 0, winRate: 0 };
+  document.getElementById('rev-projected').textContent = fmt(proj.projectedTotal || 0);
+  document.getElementById('rev-projected-sub').textContent =
+    fmt(proj.thisMonthEarnedSoFar || 0) + ' earned + ' + fmt(bj.value || 0) + ' booked (' + (bj.count || 0) + ' jobs) + ' +
+    fmt(oq.expectedValue || 0) + ' expected (' + (oq.count || 0) + ' open quotes @ ' + (oq.winRate || 0).toFixed(0) + '% win rate)';
 
   // Stat cards
   document.getElementById('avg-ticket').textContent = fmt(s.avgTicket);
