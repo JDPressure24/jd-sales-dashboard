@@ -849,7 +849,7 @@
     <button class="tab-btn active" onclick="switchTab('overview', this)">Overview</button>
     <button class="tab-btn" onclick="switchTab('revenue', this)">Revenue</button>
     <button class="tab-btn" onclick="switchTab('leads', this)">Lead Sources</button>
-    <button class="tab-btn" onclick="switchTab('quotes', this)">All Quotes</button><button class="tab-btn" onclick="switchTab('recurring', this)">Recurring</button>
+    <button class="tab-btn" onclick="switchTab('quotes', this)">All Quotes</button><button class="tab-btn" onclick="switchTab('recurring', this)">Recurring</button><button class="tab-btn" onclick="switchTab('marketing', this)">📈 Marketing ROI</button>
   </div>
 
   <!-- ── TAB: OVERVIEW ─────────────────────────────────────────────────── -->
@@ -1168,7 +1168,94 @@
     </div>
   </div>
 
-<div class="tab-content" id="tab-recurring"><div class="panel"><div class="panel-header"><div class="panel-title">Recurring Service Reminders</div><div class="panel-sub" id="recurring-summary">—</div></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Last Service</th><th>Days Since</th><th>Interval (days)</th><th>Status</th><th>Next Due</th></tr></thead><tbody id="recurring-body"></tbody></table></div></div></div></div><!-- /#app -->
+<div class="tab-content" id="tab-recurring"><div class="panel"><div class="panel-header"><div class="panel-title">Recurring Service Reminders</div><div class="panel-sub" id="recurring-summary">—</div></div><div class="table-wrap"><table><thead><tr><th>Client</th><th>Last Service</th><th>Days Since</th><th>Interval (days)</th><th>Status</th><th>Next Due</th></tr></thead><tbody id="recurring-body"></tbody></table></div></div></div>
+
+  <!-- ── TAB: MARKETING ROI ─────────────────────────────────────────────── -->
+  <div class="tab-content" id="tab-marketing">
+
+    <div class="stat-grid">
+      <div class="stat-card orange">
+        <div class="stat-label">Total Marketing Spend</div>
+        <div class="stat-value" id="mkt-total-spend">—</div>
+        <div class="stat-sub">all channels, all time logged</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Best ROAS Channel</div>
+        <div class="stat-value" style="font-size:20px" id="mkt-best-roas-channel">—</div>
+        <div class="stat-sub" id="mkt-best-roas-value">—</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Best Channel for Large Jobs</div>
+        <div class="stat-value" style="font-size:20px" id="mkt-best-large-channel">—</div>
+        <div class="stat-sub" id="mkt-best-large-value">—</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">"Large Job" Threshold</div>
+        <div class="stat-value" id="mkt-large-threshold">—</div>
+        <div class="stat-sub">top 25% of won ticket sizes</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <!-- Log spend -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Log Marketing Spend</div>
+          <div class="panel-sub">one entry per channel per month</div>
+        </div>
+        <div id="mkt-spend-list">
+          <div class="empty">
+            <div class="empty-icon">💵</div>
+            <div class="empty-title">No spend logged yet</div>
+            <div class="empty-sub">Add what you spent per channel to see ROI</div>
+          </div>
+        </div>
+        <div class="add-rep-form" style="flex-wrap:wrap">
+          <input type="month" id="mkt-spend-month" style="flex:1;min-width:120px" />
+          <select id="mkt-spend-channel" style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:7px 10px;font-size:13px">
+          </select>
+          <input type="number" id="mkt-spend-amount" placeholder="Amount $" style="flex:1;min-width:100px" />
+          <button class="btn btn-primary" onclick="addMarketingSpend()">Save</button>
+        </div>
+      </div>
+
+      <!-- Investment priority chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Investment Priority — Large Jobs</div>
+          <div class="panel-sub">% of each channel's leads that become a large job</div>
+        </div>
+        <div id="mkt-large-chart"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-header">
+        <div class="panel-title">Conversion &amp; ROI by Channel</div>
+        <div class="panel-sub">leads → wins → revenue, measured against spend</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Channel</th>
+              <th>Spend</th>
+              <th>Leads</th>
+              <th>Won</th>
+              <th>Win Rate</th>
+              <th>Revenue</th>
+              <th>Cost/Lead</th>
+              <th>Cost/Acquisition</th>
+              <th>ROAS</th>
+              <th>Large Jobs</th>
+            </tr>
+          </thead>
+          <tbody id="mkt-roi-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div><!-- /#app -->
 
 <script>
 let statsData = null;
@@ -1177,7 +1264,119 @@ let leadSourceOptions = [];
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 
-async function loadRecurring(){try{const r=await fetch('/api/recurring');const data=await r.json();const body=document.getElementById('recurring-body');const summary=document.getElementById('recurring-summary');if(!data.jobsAvailable){body.innerHTML='<tr><td colspan="6" style="padding:16px;color:var(--muted)">Recurring tracking needs Jobs access from Jobber — reconnect once Jobs permission is enabled.</td></tr>';summary.textContent='Jobs data unavailable';return;}summary.textContent=data.counts.overdue+' overdue · '+data.counts.dueSoon+' due soon · '+data.counts.ok+' on track';body.innerHTML=data.clients.map(function(c){const badgeClass=c.status==='overdue'?'badge-lost':(c.status==='due_soon'?'badge-pending':'badge-won');const statusLabel=c.status==='overdue'?'Overdue':(c.status==='due_soon'?'Due Soon':'On Track');const nextDueText=c.daysUntilDue<0?(Math.abs(c.daysUntilDue)+' days overdue'):(c.daysUntilDue+' days');const lastDate=new Date(c.lastServiceDate).toLocaleDateString();return '<tr><td>'+c.client+'</td><td>'+lastDate+'</td><td>'+c.daysSince+'</td><td><input type="number" value="'+c.intervalDays+'" style="width:60px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px" onchange="saveRecurringInterval('+JSON.stringify(c.client)+', this.value)" /></td><td><span class="badge '+badgeClass+'">'+statusLabel+'</span></td><td>'+nextDueText+'</td></tr>';}).join('');}catch(e){console.error('loadRecurring failed',e);}} async function saveRecurringInterval(client,intervalDays){await fetch('/api/recurring-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client,intervalDays})});await loadRecurring();} async function init() {
+async function loadRecurring(){try{const r=await fetch('/api/recurring');const data=await r.json();const body=document.getElementById('recurring-body');const summary=document.getElementById('recurring-summary');if(!data.jobsAvailable){body.innerHTML='<tr><td colspan="6" style="padding:16px;color:var(--muted)">Recurring tracking needs Jobs access from Jobber — reconnect once Jobs permission is enabled.</td></tr>';summary.textContent='Jobs data unavailable';return;}summary.textContent=data.counts.overdue+' overdue · '+data.counts.dueSoon+' due soon · '+data.counts.ok+' on track';body.innerHTML=data.clients.map(function(c){const badgeClass=c.status==='overdue'?'badge-lost':(c.status==='due_soon'?'badge-pending':'badge-won');const statusLabel=c.status==='overdue'?'Overdue':(c.status==='due_soon'?'Due Soon':'On Track');const nextDueText=c.daysUntilDue<0?(Math.abs(c.daysUntilDue)+' days overdue'):(c.daysUntilDue+' days');const lastDate=new Date(c.lastServiceDate).toLocaleDateString();return '<tr><td>'+c.client+'</td><td>'+lastDate+'</td><td>'+c.daysSince+'</td><td><input type="number" value="'+c.intervalDays+'" style="width:60px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px" onchange="saveRecurringInterval('+JSON.stringify(c.client)+', this.value)" /></td><td><span class="badge '+badgeClass+'">'+statusLabel+'</span></td><td>'+nextDueText+'</td></tr>';}).join('');}catch(e){console.error('loadRecurring failed',e);}} async function saveRecurringInterval(client,intervalDays){await fetch('/api/recurring-settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client,intervalDays})});await loadRecurring();}
+
+// ── Marketing ROI ────────────────────────────────────────────────────────────
+
+async function loadMarketingReport() {
+  try {
+    populateMarketingChannelSelect();
+    const [reportRes, spendRes] = await Promise.all([
+      fetch('/api/marketing-report'),
+      fetch('/api/marketing-spend'),
+    ]);
+    if (!reportRes.ok) {
+      document.getElementById('mkt-roi-body').innerHTML =
+        '<tr><td colspan="10" style="padding:16px;color:var(--muted)">Connect Jobber to see conversion &amp; ROI data.</td></tr>';
+      return;
+    }
+    const report = await reportRes.json();
+    const spendEntries = await spendRes.json();
+    renderMarketingReport(report);
+    renderMarketingSpendList(spendEntries);
+  } catch (e) {
+    console.error('loadMarketingReport failed', e);
+  }
+}
+
+function populateMarketingChannelSelect() {
+  const sel = document.getElementById('mkt-spend-channel');
+  if (!sel || sel.options.length > 0) return;
+  const opts = leadSourceOptions.length ? leadSourceOptions : [
+    'Referral', 'Google', 'Facebook / Instagram', 'Door Knock', 'Yard Sign', 'Repeat Customer', 'Website', 'Nextdoor', 'Other',
+  ];
+  sel.innerHTML = opts.map(o => `<option value="${o}">${o}</option>`).join('');
+}
+
+function renderMarketingSpendList(entries) {
+  const el = document.getElementById('mkt-spend-list');
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">💵</div><div class="empty-title">No spend logged yet</div><div class="empty-sub">Add what you spent per channel to see ROI</div></div>';
+    return;
+  }
+  el.innerHTML = entries.map(e => `
+    <div class="lead-bar-row">
+      <div class="lead-name">${e.month} · ${e.channel}</div>
+      <div class="lead-count" style="width:80px;color:var(--orange)">${fmt(e.amount)}</div>
+      <button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="deleteMarketingSpend('${e.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+async function addMarketingSpend() {
+  const month = document.getElementById('mkt-spend-month').value;
+  const channel = document.getElementById('mkt-spend-channel').value;
+  const amount = document.getElementById('mkt-spend-amount').value;
+  if (!month || !channel || !amount) { alert('Enter a month, channel, and amount.'); return; }
+  await fetch('/api/marketing-spend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ month, channel, amount }),
+  });
+  document.getElementById('mkt-spend-amount').value = '';
+  await loadMarketingReport();
+}
+
+async function deleteMarketingSpend(id) {
+  await fetch('/api/marketing-spend/' + id, { method: 'DELETE' });
+  await loadMarketingReport();
+}
+
+function renderMarketingReport(report) {
+  const channels = report.channels || [];
+
+  document.getElementById('mkt-total-spend').textContent = fmt(report.totalSpend || 0);
+  document.getElementById('mkt-large-threshold').textContent = fmt(report.largeJobThreshold || 0);
+
+  const byRoas = [...channels].filter(c => c.roas != null).sort((a, b) => b.roas - a.roas);
+  document.getElementById('mkt-best-roas-channel').textContent = byRoas[0]?.channel || '—';
+  document.getElementById('mkt-best-roas-value').textContent = byRoas[0] ? byRoas[0].roas.toFixed(2) + 'x return on spend' : 'Log spend to see this';
+
+  const byLarge = [...channels].filter(c => c.leads >= 2).sort((a, b) => b.largeJobs.conversionRate - a.largeJobs.conversionRate);
+  document.getElementById('mkt-best-large-channel').textContent = byLarge[0]?.channel || '—';
+  document.getElementById('mkt-best-large-value').textContent = byLarge[0] ? byLarge[0].largeJobs.conversionRate.toFixed(1) + '% of leads become large jobs' : '—';
+
+  // ROI table
+  document.getElementById('mkt-roi-body').innerHTML = channels.length ? channels
+    .sort((a, b) => b.revenue - a.revenue)
+    .map(c => `
+      <tr>
+        <td>${c.channel}</td>
+        <td>${fmt(c.spend)}</td>
+        <td>${c.leads}</td>
+        <td>${c.won}</td>
+        <td>${c.winRate.toFixed(1)}%</td>
+        <td style="color:var(--green)">${fmt(c.revenue)}</td>
+        <td>${c.costPerLead != null ? fmt(c.costPerLead) : '—'}</td>
+        <td>${c.costPerAcquisition != null ? fmt(c.costPerAcquisition) : '—'}</td>
+        <td>${c.roas != null ? c.roas.toFixed(2) + 'x' : '—'}</td>
+        <td>${c.largeJobs.count} <span style="color:var(--muted)">(${c.largeJobs.conversionRate.toFixed(1)}%)</span></td>
+      </tr>
+    `).join('') : '<tr><td colspan="10" style="padding:16px;color:var(--muted)">No lead-source-tagged quotes yet.</td></tr>';
+
+  // Investment priority chart — large-job conversion rate per channel
+  const chartable = channels.filter(c => c.leads >= 2).sort((a, b) => b.largeJobs.conversionRate - a.largeJobs.conversionRate);
+  const maxRate = Math.max(...chartable.map(c => c.largeJobs.conversionRate), 1);
+  document.getElementById('mkt-large-chart').innerHTML = chartable.length ? chartable.map(c => `
+    <div class="lead-bar-row">
+      <div class="lead-name">${c.channel}</div>
+      <div class="lead-track"><div class="lead-fill" style="width:${(c.largeJobs.conversionRate / maxRate * 100).toFixed(1)}%;background:var(--navy-bright)"></div></div>
+      <div class="lead-count">${c.largeJobs.count}</div>
+      <div class="lead-pct">${c.largeJobs.conversionRate.toFixed(1)}%</div>
+    </div>
+  `).join('') : '<div class="empty"><div class="empty-sub">Need at least 2 leads on a channel to compare large-job conversion.</div></div>';
+}
+ async function init() {
   const r = await fetch('/api/status');
   const { connected } = await r.json();
   if (!connected) {
@@ -1189,7 +1388,7 @@ async function loadRecurring(){try{const r=await fetch('/api/recurring');const d
 }
 
 async function loadAll() {
-  await Promise.all([loadReps(), loadStats(), loadRecurring()]);
+  await Promise.all([loadReps(), loadStats(), loadRecurring(), loadMarketingReport()]);
   loadInvoiceStats();
 }
 
