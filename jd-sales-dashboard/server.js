@@ -18,6 +18,7 @@ const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
 const LEAD_SOURCES_FILE = path.join(__dirname, '.lead-sources.json');
 const RECURRING_SETTINGS_FILE = path.join(__dirname, '.recurring-settings.json');
+const MARKETING_SPEND_FILE = path.join(__dirname, '.marketing-spend.json');
 const MONTHLY_GOAL = 50000;
 const BUSINESS_TIMEZONE = 'America/New_York';
 const DEFAULT_RECURRING_INTERVAL_DAYS = 90;
@@ -290,6 +291,12 @@ function readLeadSources() {
   return {};
 }
 function writeLeadSources(data) { fs.writeFileSync(LEAD_SOURCES_FILE, JSON.stringify(data)); }
+
+function readMarketingSpend() {
+  try { if (fs.existsSync(MARKETING_SPEND_FILE)) return JSON.parse(fs.readFileSync(MARKETING_SPEND_FILE, 'utf8')); } catch (_) {}
+  return [];
+}
+function writeMarketingSpend(data) { fs.writeFileSync(MARKETING_SPEND_FILE, JSON.stringify(data)); }
 
 function readRecurringSettings() {
   try { if (fs.existsSync(RECURRING_SETTINGS_FILE)) return JSON.parse(fs.readFileSync(RECURRING_SETTINGS_FILE, 'utf8')); } catch (_) {}
@@ -812,6 +819,117 @@ app.post('/api/assignments', (req, res) => {
   else delete assignments[quoteId];
   writeAssignments(assignments);
   res.json({ ok: true });
+});
+
+// ── Marketing spend & ROI ────────────────────────────────────────────────────
+// Jobber has no concept of ad spend, so this is tracked manually here (one
+// entry per channel per month) until it's wired up to a live source like
+// GoHighLevel. Everything below is designed to keep working the same way
+// once spend starts arriving automatically instead of by hand.
+
+app.get('/api/marketing-spend', (req, res) => {
+  res.json(readMarketingSpend());
+});
+
+app.post('/api/marketing-spend', (req, res) => {
+  const { month, channel, amount } = req.body;
+  if (!month || !channel || amount == null || isNaN(Number(amount))) {
+    return res.status(400).json({ error: 'month, channel, and a numeric amount are required' });
+  }
+  const entries = readMarketingSpend();
+  const existing = entries.find((e) => e.month === month && e.channel === channel);
+  if (existing) {
+    existing.amount = Number(amount);
+  } else {
+    entries.push({ id: crypto.randomUUID(), month, channel, amount: Number(amount) });
+  }
+  writeMarketingSpend(entries);
+  res.json({ ok: true });
+});
+
+app.delete('/api/marketing-spend/:id', (req, res) => {
+  const entries = readMarketingSpend().filter((e) => e.id !== req.params.id);
+  writeMarketingSpend(entries);
+  res.json({ ok: true });
+});
+
+app.get('/api/marketing-report', async (req, res) => {
+  const token = await getAccessToken(req, res);
+  if (!token) return res.status(401).json({ error: 'Not connected to Jobber' });
+
+  try {
+    const quotes = await fetchAllQuotes(token);
+    const leadSourceMap = readLeadSources();
+    const spendEntries = readMarketingSpend();
+
+    const enriched = quotes.map((q) => ({
+      ...q,
+      leadSource: leadSourceMap[q.id] || q.client?.leadSource || null,
+    }));
+
+    const sent = enriched.filter((q) => q.quoteStatus !== 'draft');
+    const won = enriched.filter((q) => ['approved', 'converted'].includes(q.quoteStatus));
+
+    // "Larger job" = top 25% of ticket sizes among won jobs (75th percentile),
+    // recalculated on every request so it automatically tracks your actual
+    // business as ticket sizes change, instead of a fixed number that goes
+    // stale.
+    const wonTotals = won.map((q) => q.amounts?.total || 0).sort((a, b) => a - b);
+    const largeJobThreshold = wonTotals.length ? wonTotals[Math.floor(wonTotals.length * 0.75)] : 0;
+
+    const totalSpendByChannel = {};
+    for (const e of spendEntries) {
+      totalSpendByChannel[e.channel] = (totalSpendByChannel[e.channel] || 0) + Number(e.amount || 0);
+    }
+
+    const channelNames = [...LEAD_SOURCE_OPTIONS, 'Untagged'];
+    const channels = channelNames
+      .map((channel) => {
+        const channelSent = sent.filter((q) => (q.leadSource || 'Untagged') === channel);
+        const channelWon = won.filter((q) => (q.leadSource || 'Untagged') === channel);
+        const channelLargeWon = channelWon.filter(
+          (q) => largeJobThreshold > 0 && (q.amounts?.total || 0) >= largeJobThreshold
+        );
+
+        const revenue = channelWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
+        const largeJobRevenue = channelLargeWon.reduce((s, q) => s + (q.amounts?.total || 0), 0);
+        const spend = totalSpendByChannel[channel] || 0;
+        const leads = channelSent.length;
+        const wonCount = channelWon.length;
+
+        return {
+          channel,
+          spend,
+          leads,
+          won: wonCount,
+          revenue,
+          winRate: leads > 0 ? (wonCount / leads) * 100 : 0,
+          costPerLead: leads > 0 ? spend / leads : null,
+          costPerAcquisition: wonCount > 0 ? spend / wonCount : null,
+          roas: spend > 0 ? revenue / spend : null,
+          largeJobs: {
+            count: channelLargeWon.length,
+            revenue: largeJobRevenue,
+            // Of this channel's leads, what % turn into a large job — the
+            // core "where should I invest to land bigger jobs" signal.
+            conversionRate: leads > 0 ? (channelLargeWon.length / leads) * 100 : 0,
+            // Of this channel's wins, what % are large jobs.
+            shareOfWins: wonCount > 0 ? (channelLargeWon.length / wonCount) * 100 : 0,
+          },
+        };
+      })
+      .filter((r) => r.leads > 0 || r.spend > 0);
+
+    res.json({
+      largeJobThreshold,
+      totalSpend: Object.values(totalSpendByChannel).reduce((s, v) => s + v, 0),
+      channels,
+      spendEntries: spendEntries.sort((a, b) => (a.month < b.month ? 1 : -1)),
+    });
+  } catch (err) {
+    console.error('Marketing report error:', err.message);
+    res.status(500).json({ error: 'Failed to build marketing report', detail: err.message });
+  }
 });
 
 app.listen(PORT, () => {
