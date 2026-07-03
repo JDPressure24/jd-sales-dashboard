@@ -15,7 +15,11 @@ const APP_URL = process.env.APP_URL || `http://localhost:${PORT}`;
 const COOKIE_SECRET = process.env.COOKIE_SECRET || 'jd-pressure-washing-secret-key-2024';
 const GHL_API_KEY = process.env.GHL_API_KEY;
 const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
+const GHL_CLIENT_ID = process.env.GHL_CLIENT_ID;
+const GHL_CLIENT_SECRET = process.env.GHL_CLIENT_SECRET;
 const GHL_BASE_URL = 'https://services.leadconnectorhq.com';
+const GHL_CALLBACK_URL = `${APP_URL}/auth/marketing/callback`;
+const GHL_SCOPES = 'contacts.readonly opportunities.readonly campaigns.readonly';
 const CALLBACK_URL = `${APP_URL}/auth/callback`;
 const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
@@ -91,6 +95,59 @@ async function getAccessToken(req, res) {
   return token.access_token;
 }
 
+// ── GoHighLevel OAuth token helpers ──────────────────────────────────────────
+// Mirrors the Jobber token pattern above, in a separate signed cookie so the
+// two connections don't interfere with each other.
+
+function readGhlToken(req) {
+  try {
+    const raw = req.signedCookies?.ghl_token || req.cookies?.ghl_token;
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return null;
+}
+
+function writeGhlToken(res, data) {
+  const payload = JSON.stringify({ ...data, obtained_at: Date.now() });
+  res.cookie('ghl_token', payload, {
+    signed: true,
+    httpOnly: true,
+    secure: APP_URL.startsWith('https'),
+    maxAge: 365 * 24 * 60 * 60 * 1000,
+    sameSite: 'lax',
+  });
+}
+
+async function getGhlAccessToken(req, res) {
+  let token = readGhlToken(req);
+  if (!token) return null;
+
+  // GHL access tokens are typically short-lived (~1hr); refresh a little
+  // early to be safe, same margin used for the Jobber token above.
+  const age = Date.now() - token.obtained_at;
+  if (age > 55 * 60 * 1000) {
+    try {
+      const r = await axios.post(
+        `${GHL_BASE_URL}/oauth/token`,
+        new URLSearchParams({
+          client_id: GHL_CLIENT_ID,
+          client_secret: GHL_CLIENT_SECRET,
+          grant_type: 'refresh_token',
+          refresh_token: token.refresh_token,
+        }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      if (res) writeGhlToken(res, r.data);
+      return r.data.access_token;
+    } catch (err) {
+      console.error('GHL token refresh failed:', err.response?.data || err.message);
+      if (res) res.clearCookie('ghl_token');
+      return null;
+    }
+  }
+  return token.access_token;
+}
+
 // ── OAuth routes ───────────────────────────────────────────────────────────────
 
 app.get('/auth/jobber', (req, res) => {
@@ -128,6 +185,54 @@ app.get('/auth/callback', async (req, res) => {
 
 app.get('/auth/logout', (req, res) => {
   res.clearCookie('jd_token');
+  res.redirect('/');
+});
+
+// ── GoHighLevel OAuth routes ──────────────────────────────────────────────────
+
+app.get('/auth/marketing', (req, res) => {
+  if (!GHL_CLIENT_ID) {
+    return res.status(400).send('GHL_CLIENT_ID is not set on the server yet. Add it in Railway Variables first.');
+  }
+  const state = crypto.randomBytes(16).toString('hex');
+  pendingStates[state] = true;
+  const url = [
+    'https://marketplace.gohighlevel.com/v2/oauth/chooselocation',
+    `?response_type=code`,
+    `&redirect_uri=${encodeURIComponent(GHL_CALLBACK_URL)}`,
+    `&client_id=${GHL_CLIENT_ID}`,
+    `&scope=${encodeURIComponent(GHL_SCOPES)}`,
+    `&state=${state}`,
+  ].join('');
+  res.redirect(url);
+});
+
+app.get('/auth/marketing/callback', async (req, res) => {
+  const { code, state } = req.query;
+  if (!pendingStates[state]) return res.status(400).send('Invalid state — please try connecting again.');
+  delete pendingStates[state];
+  try {
+    const response = await axios.post(
+      `${GHL_BASE_URL}/oauth/token`,
+      new URLSearchParams({
+        client_id: GHL_CLIENT_ID,
+        client_secret: GHL_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: GHL_CALLBACK_URL,
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+    writeGhlToken(res, response.data);
+    res.redirect('/');
+  } catch (err) {
+    console.error('GHL OAuth callback error:', err.response?.data || err.message);
+    res.status(500).send('GoHighLevel authentication failed. Please go back and try again.');
+  }
+});
+
+app.get('/auth/marketing/logout', (req, res) => {
+  res.clearCookie('ghl_token');
   res.redirect('/');
 });
 
@@ -968,16 +1073,34 @@ app.get('/api/marketing-report', async (req, res) => {
 // live account from here, so this surfaces the raw response/error so we can
 // confirm the right base URL, auth header, and version header for your
 // account before building anything real on top of it.
+app.get('/api/ghl/status', async (req, res) => {
+  const oauthToken = await getGhlAccessToken(req, res);
+  res.json({
+    connected: !!oauthToken || !!GHL_API_KEY,
+    method: oauthToken ? 'oauth' : (GHL_API_KEY ? 'private_integration' : 'none'),
+  });
+});
+
 app.get('/api/ghl/test', async (req, res) => {
-  if (!GHL_API_KEY) {
-    return res.status(400).json({ ok: false, error: 'GHL_API_KEY environment variable is not set on the server yet.' });
+  // Prefer a connected OAuth token (broader scopes, e.g. Marketplace app);
+  // fall back to the legacy Private Integration static key if OAuth isn't
+  // connected yet, so this keeps working either way.
+  const oauthToken = await getGhlAccessToken(req, res);
+  const authToken = oauthToken || GHL_API_KEY;
+  const authMethod = oauthToken ? 'oauth' : (GHL_API_KEY ? 'private_integration' : 'none');
+
+  if (!authToken) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Not connected — either use "Connect GoHighLevel" in the app, or set GHL_API_KEY on the server.',
+    });
   }
 
   const attempts = [];
 
   try {
     const r = await axios.get(`${GHL_BASE_URL}/contacts/`, {
-      headers: { Authorization: `Bearer ${GHL_API_KEY}`, Version: '2021-07-28' },
+      headers: { Authorization: `Bearer ${authToken}`, Version: '2021-07-28' },
       params: { locationId: GHL_LOCATION_ID, limit: 1 },
     });
     attempts.push({ endpoint: 'GET /contacts/', ok: true, status: r.status, sample: r.data });
@@ -992,7 +1115,7 @@ app.get('/api/ghl/test', async (req, res) => {
 
   try {
     const r = await axios.get(`${GHL_BASE_URL}/opportunities/search`, {
-      headers: { Authorization: `Bearer ${GHL_API_KEY}`, Version: '2021-07-28' },
+      headers: { Authorization: `Bearer ${authToken}`, Version: '2021-07-28' },
       params: { location_id: GHL_LOCATION_ID, limit: 1 },
     });
     attempts.push({ endpoint: 'GET /opportunities/search', ok: true, status: r.status, sample: r.data });
@@ -1005,7 +1128,7 @@ app.get('/api/ghl/test', async (req, res) => {
     });
   }
 
-  res.json({ locationIdSet: !!GHL_LOCATION_ID, attempts });
+  res.json({ authMethod, locationIdSet: !!GHL_LOCATION_ID, attempts });
 });
 
 app.listen(PORT, () => {
