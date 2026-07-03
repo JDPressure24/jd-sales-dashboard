@@ -1173,6 +1173,22 @@
   <!-- ── TAB: MARKETING ROI ─────────────────────────────────────────────── -->
   <div class="tab-content" id="tab-marketing">
 
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-header" style="align-items:center">
+        <div>
+          <div class="panel-title">GoHighLevel Connection</div>
+          <div class="panel-sub">powers automatic lead/opportunity data once connected</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="status-badge disconnected" id="ghl-status-badge">
+            <div class="status-dot"></div>
+            Not Connected
+          </div>
+          <button class="btn btn-primary" id="ghl-connect-btn" onclick="location.href='/auth/marketing'">Connect GoHighLevel</button>
+        </div>
+      </div>
+    </div>
+
     <div class="stat-grid">
       <div class="stat-card orange">
         <div class="stat-label">Total Marketing Spend</div>
@@ -1271,6 +1287,24 @@ async function loadRecurring(){try{const r=await fetch('/api/recurring');const d
 async function loadMarketingReport() {
   try {
     populateMarketingChannelSelect();
+
+    // GHL connection status badge
+    try {
+      const statusRes = await fetch('/api/ghl/status');
+      const status = await statusRes.json();
+      const badge = document.getElementById('ghl-status-badge');
+      const btn = document.getElementById('ghl-connect-btn');
+      if (status.connected) {
+        badge.className = 'status-badge connected';
+        badge.innerHTML = '<div class="status-dot"></div>Connected (' + (status.method === 'oauth' ? 'OAuth' : 'API Key') + ')';
+        btn.textContent = 'Reconnect';
+      } else {
+        badge.className = 'status-badge disconnected';
+        badge.innerHTML = '<div class="status-dot"></div>Not Connected';
+        btn.textContent = 'Connect GoHighLevel';
+      }
+    } catch (e) { console.error('ghl status check failed', e); }
+
     const [reportRes, spendRes] = await Promise.all([
       fetch('/api/marketing-report'),
       fetch('/api/marketing-spend'),
