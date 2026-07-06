@@ -223,6 +223,7 @@ app.get('/auth/marketing/callback', async (req, res) => {
       }),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
+    console.log('GHL OAuth token exchange succeeded. Fields returned:', Object.keys(response.data || {}));
     writeGhlToken(res, response.data);
     res.redirect('/');
   } catch (err) {
@@ -1074,10 +1075,18 @@ app.get('/api/marketing-report', async (req, res) => {
 // confirm the right base URL, auth header, and version header for your
 // account before building anything real on top of it.
 app.get('/api/ghl/status', async (req, res) => {
+  const rawToken = readGhlToken(req);
   const oauthToken = await getGhlAccessToken(req, res);
   res.json({
     connected: !!oauthToken || !!GHL_API_KEY,
     method: oauthToken ? 'oauth' : (GHL_API_KEY ? 'private_integration' : 'none'),
+    debug: {
+      ghlCookiePresent: !!rawToken,
+      // Field names only — never values — so we can see what GHL's token
+      // exchange actually returned without exposing anything sensitive.
+      storedTokenFields: rawToken ? Object.keys(rawToken) : [],
+      obtainedAt: rawToken?.obtained_at || null,
+    },
   });
 });
 
