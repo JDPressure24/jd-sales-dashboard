@@ -789,9 +789,9 @@
       <div class="daily-sub">quotes approved</div>
     </div>
     <div class="daily-item">
-      <div class="daily-label">Pending</div>
-      <div class="daily-value" id="today-pending">—</div>
-      <div class="daily-sub">awaiting response</div>
+      <div class="daily-label">Pending Quotes</div>
+      <div class="daily-value" id="last-7-days">—</div>
+      <div class="daily-sub">awaiting response, past 7 days</div>
     </div>
   </div>
 
@@ -1527,7 +1527,7 @@ function renderStats(data) {
   // Daily bar
   document.getElementById('today-sent').textContent = d.sent ?? '0';
   document.getElementById('today-won').textContent = d.won ?? '0';
-  document.getElementById('today-pending').textContent = d.pending ?? '0';
+  document.getElementById('last-7-days').textContent = d.last7Days ?? '0';
 
   // Today's Generated Revenue — three views side by side
   const rb = d.revenueBreakdown || {};
