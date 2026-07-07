@@ -835,13 +835,17 @@
   </div>
 
   <!-- Monthly Goal Bar -->
-  <div class="goal-bar-wrap">
-    <div class="goal-label">🎯 Monthly Goal</div>
-    <div class="goal-track">
-      <div class="goal-fill" id="goal-fill" style="width:0%"></div>
+  <div style="background:var(--surface);border-bottom:1px solid var(--border)">
+    <div class="goal-bar-wrap" style="border-bottom:none;padding-bottom:6px">
+      <div class="goal-label">🎯 Monthly Goal</div>
+      <div class="goal-track">
+        <div class="goal-fill" id="goal-fill" style="width:0%"></div>
+      </div>
+      <div class="goal-pct" id="goal-pct">0%</div>
+      <div class="goal-amount" id="goal-amount">$0 of $60,000</div>
+      <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px;white-space:nowrap" onclick="editGoal()">✎ Edit Goal</button>
     </div>
-    <div class="goal-pct" id="goal-pct">0%</div>
-    <div class="goal-amount" id="goal-amount">$0 of $50,000</div>
+    <div style="padding:0 24px 12px;font-size:12px;color:var(--muted)" id="goal-daily-target">—</div>
   </div>
 
   <!-- Tabs -->
@@ -1447,6 +1451,20 @@ function clearFilters() {
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
+async function editGoal() {
+  const current = statsData?.goal?.monthly || 60000;
+  const input = prompt('Set your monthly revenue goal ($):', current);
+  if (input === null) return;
+  const num = Number(input);
+  if (isNaN(num) || num <= 0) { alert('Please enter a valid positive number.'); return; }
+  await fetch('/api/goal-settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ monthlyGoal: num }),
+  });
+  await loadStats();
+}
+
 async function loadStats() {
   const from = document.getElementById('from-date')?.value || document.getElementById('from-date2')?.value || '';
   const to = document.getElementById('to-date')?.value || document.getElementById('to-date2')?.value || '';
@@ -1483,7 +1501,24 @@ function renderStats(data) {
     const g = data.goal;
     document.getElementById('goal-fill').style.width = g.percent.toFixed(1) + '%';
     document.getElementById('goal-pct').textContent = g.percent.toFixed(1) + '%';
-    document.getElementById('goal-amount').textContent = fmt(g.thisMonthRevenue) + ' of $50,000';
+    document.getElementById('goal-amount').textContent = fmt(g.thisMonthRevenue) + ' of ' + fmt(g.monthly);
+
+    const dt = g.dailyTarget;
+    const targetEl = document.getElementById('goal-daily-target');
+    if (dt) {
+      if (dt.amountRemaining <= 0) {
+        targetEl.innerHTML = '🎉 Goal already hit this month — ' + fmt(g.thisMonthRevenue - g.monthly) + ' over target.';
+      } else {
+        const paceNote = dt.onPace
+          ? '<span style="color:var(--green)">on pace</span>'
+          : '<span style="color:var(--orange)">behind pace</span>';
+        targetEl.innerHTML =
+          'Need ' + fmt(dt.requiredPerDay) + '/day for the next ' + dt.daysRemaining +
+          (dt.daysRemaining === 1 ? ' day' : ' days') + ' to hit ' + fmt(g.monthly) +
+          ' &nbsp;·&nbsp; averaging ' + fmt(dt.avgPerDaySoFar) + '/day so far, ' + paceNote +
+          ' (baseline ' + fmt(dt.baselinePerDay) + '/day)';
+      }
+    }
   }
 
   // Lead sources
