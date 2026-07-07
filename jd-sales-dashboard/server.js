@@ -540,6 +540,15 @@ app.get('/api/stats', async (req, res) => {
     const todaySent = todayQuotes.filter((q) => q.quoteStatus !== 'draft');
     const todayPending = todayQuotes.filter((q) => q.quoteStatus === 'awaiting_response');
 
+    // Pending (awaiting response) quotes created in the past 7 days (rolling
+    // window including today) — a pulse check on how much is sitting unanswered.
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // 6 days back + today = 7 days
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    const last7DaysPending = enriched.filter(
+      (q) => q.quoteStatus === 'awaiting_response' && new Date(q.createdAt) >= sevenDaysAgo
+    );
+
     // "Won today" is based on when the quote's status actually flipped to
     // approved/converted (transitionedAt), not when it was created. A quote
     // created last week that gets approved today should count toward today's
@@ -744,6 +753,7 @@ app.get('/api/stats', async (req, res) => {
         won: todayWon.length,
         revenue: todayRevenue,
         pending: todayPending.length,
+        last7Days: last7DaysPending.length,
         revenueBreakdown: {
           quotesWon: { amount: todayRevenue, count: todayWon.length },
           jobsCompleted: { amount: jobsCompletedTodayRevenue, count: jobsCompletedToday.length, available: jobsAvailable },
