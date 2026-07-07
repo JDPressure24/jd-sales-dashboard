@@ -25,8 +25,15 @@ const REPS_FILE = path.join(__dirname, '.reps.json');
 const ASSIGNMENTS_FILE = path.join(__dirname, '.assignments.json');
 const LEAD_SOURCES_FILE = path.join(__dirname, '.lead-sources.json');
 const RECURRING_SETTINGS_FILE = path.join(__dirname, '.recurring-settings.json');
+const GOAL_SETTINGS_FILE = path.join(__dirname, '.goal-settings.json');
 const MARKETING_SPEND_FILE = path.join(__dirname, '.marketing-spend.json');
-const MONTHLY_GOAL = 50000;
+const MONTHLY_GOAL_DEFAULT = 60000;
+
+function readGoalSettings() {
+  try { if (fs.existsSync(GOAL_SETTINGS_FILE)) return JSON.parse(fs.readFileSync(GOAL_SETTINGS_FILE, 'utf8')); } catch (_) {}
+  return { monthlyGoal: MONTHLY_GOAL_DEFAULT };
+}
+function writeGoalSettings(data) { fs.writeFileSync(GOAL_SETTINGS_FILE, JSON.stringify(data)); }
 const BUSINESS_TIMEZONE = 'America/New_York';
 const DEFAULT_RECURRING_INTERVAL_DAYS = 90;
 const DUE_SOON_WINDOW_DAYS = 14;
@@ -704,6 +711,22 @@ app.get('/api/stats', async (req, res) => {
       }
     }
 
+    // Daily target to hit the monthly goal — how much you need to average
+    // per remaining day (including today) to close the gap between what's
+    // already earned and the goal.
+    const goalSettings = readGoalSettings();
+    const monthlyGoal = goalSettings.monthlyGoal || MONTHLY_GOAL_DEFAULT;
+
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const dayOfMonth = today.getDate();
+    const daysRemaining = daysInMonth - dayOfMonth + 1; // includes today
+    const amountRemaining = Math.max(monthlyGoal - thisMonthRevenue, 0);
+    const requiredPerDay = daysRemaining > 0 ? amountRemaining / daysRemaining : 0;
+    const baselinePerDay = monthlyGoal / daysInMonth;
+    const avgPerDaySoFar = dayOfMonth > 0 ? thisMonthRevenue / dayOfMonth : 0;
+    const onPace = avgPerDaySoFar >= baselinePerDay;
+
     res.json({
       summary: {
         totalQuotes: filtered.length,
@@ -733,10 +756,20 @@ app.get('/api/stats', async (req, res) => {
       recentQuotes,
       leadSourceStats,
       goal: {
-        monthly: MONTHLY_GOAL,
+        monthly: monthlyGoal,
         thisMonthRevenue,
-        percent: Math.min((thisMonthRevenue / MONTHLY_GOAL) * 100, 100),
+        percent: Math.min((thisMonthRevenue / monthlyGoal) * 100, 100),
         basis: jobsAvailable ? 'completed_jobs' : 'won_quotes_fallback',
+        dailyTarget: {
+          amountRemaining,
+          daysRemaining,
+          daysInMonth,
+          dayOfMonth,
+          requiredPerDay,
+          baselinePerDay,
+          avgPerDaySoFar,
+          onPace,
+        },
       },
       lastMonth: {
         key: lastMonthKey,
@@ -907,6 +940,19 @@ app.post('/api/recurring-settings', (req, res) => {
   if (intervalDays) settings[client] = Number(intervalDays);
   else delete settings[client];
   writeRecurringSettings(settings);
+  res.json({ ok: true });
+});
+
+app.get('/api/goal-settings', (req, res) => {
+  res.json(readGoalSettings());
+});
+
+app.post('/api/goal-settings', (req, res) => {
+  const { monthlyGoal } = req.body;
+  if (monthlyGoal == null || isNaN(Number(monthlyGoal)) || Number(monthlyGoal) <= 0) {
+    return res.status(400).json({ error: 'monthlyGoal must be a positive number' });
+  }
+  writeGoalSettings({ monthlyGoal: Number(monthlyGoal) });
   res.json({ ok: true });
 });
 
